@@ -7,14 +7,17 @@ use serde::Deserialize;
 
 use crate::config::{self, expansion_config::{ExpansionEnchants, Expansions}, settings::Settings};
 
+#[allow(dead_code)]
 pub struct ArmoryChecker {}
 
 #[derive(serde::Deserialize, Clone, Debug)]
+#[allow(dead_code)]
 struct GearEnchantment {
     enchantment_id: i32
 }
 
 #[derive(serde::Deserialize, Clone, Debug)]
+#[allow(dead_code)]
 struct GearInventoryType {
     #[serde(alias = "name")]
     _name: String,
@@ -35,6 +38,7 @@ struct GearSockets {
 }
 
 #[derive(serde::Deserialize, Clone, Debug)]
+#[allow(dead_code)]
 pub struct CharacterGear {
     enchantments: Option<Vec<GearEnchantment>>,
     inventory_type: GearInventoryType,
@@ -70,6 +74,7 @@ pub struct ArmoryTimestamp {
 }
 
 #[derive(serde::Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct ArmoryCharacter {
     #[serde(alias = "averageItemLevel")]
     pub average_item_level: i32,
@@ -96,16 +101,19 @@ pub struct ArmoryRaidDifficulty {
 }
 
 #[derive(serde::Deserialize,Clone)]
+#[allow(dead_code)]
 pub struct ArmoryRaids {
     difficulties: Vec<ArmoryRaidDifficulty>
 }
 
 #[derive(serde::Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct ArmorySummary {
     pub raids: Vec<ArmoryRaids>
 }
 
 #[derive(serde::Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct ArmoryCharacterResponse {
     #[serde(skip_deserializing, alias = "lqip")]
     _lqip: Option<String>,
@@ -114,6 +122,7 @@ pub struct ArmoryCharacterResponse {
 }
 
 #[derive(serde::Deserialize, Clone)]
+#[allow(dead_code)]
 struct Achievements {
     #[serde(alias = "accountWide")]
     account_wide: bool,
@@ -123,6 +132,7 @@ struct Achievements {
 }
 
 #[derive(serde::Deserialize, Clone)]
+#[allow(dead_code)]
 struct AchievementSubCategory {
     achievements: Vec<Achievements>,
     id: String,
@@ -130,6 +140,7 @@ struct AchievementSubCategory {
 }
 
 #[derive(serde::Deserialize, Clone)]
+#[allow(dead_code)]
 struct AchievementCategory {
     //#[serde(skip_deserializing)]
     //achievementsList: Option<Vec<String>>,
@@ -137,18 +148,21 @@ struct AchievementCategory {
 }
 
 #[derive(serde::Deserialize, Clone)]
+#[allow(dead_code)]
 struct ArmoryCharacterAchievementResponse {
     #[serde(alias = "achievementCategory")]
     achievement_category: AchievementCategory,
 }
 
 #[derive(Debug, serde::Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct ReputationsResponse {
     pub region: String,
     pub reputations: Vec<ReputationCategory>,
 }
 
 #[derive(Debug, serde::Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct ReputationCategory {
     pub id: String,
     pub name: String,
@@ -166,6 +180,7 @@ pub struct ReputationCategory {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct StandingType {
     #[serde(alias = "enum")]
     pub enum_name: String,
@@ -175,6 +190,7 @@ pub struct StandingType {
 }
 
 #[derive(serde::Deserialize, Clone)]
+#[allow(dead_code)]
 struct ArmoryCharacterReputationResponse {
     pub reputations: ReputationsResponse
 }

@@ -1,5 +1,4 @@
-use std::{default, fs::{self, File}, io::{self, Write}, path::Path};
-use serde::{Deserialize, Serialize};
+use std::{fs::{self, File}, io::{self, Write}, path::Path};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct EnchantmentSlotSetting {
@@ -82,6 +81,7 @@ impl EnchantmentSlots {
         ]
     }
 
+    #[allow(dead_code)]
     pub fn as_array(&self) -> [(EnchantmentSlotSetting, &str); 12] {
         [
             (self.back.clone(), "back"),

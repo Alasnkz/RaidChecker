@@ -1,8 +1,7 @@
-use egui::Response;
 use reqwest::blocking::Client;
 use std::{sync::mpsc::{self, Receiver, Sender}, thread};
 
-use crate::config::{self, last_raid::{self, LastRaid}};
+use crate::config::{self, last_raid::{LastRaid}};
 
 use super::check_player::{PlayerChecker, PlayerData};
 
@@ -71,8 +70,8 @@ impl Default for Player {
 }
 impl Default for RaidSheet {
     fn default() -> Self {
-        let (tx, rx) = mpsc::channel();
-        let (tx2, rx2) = mpsc::channel();
+        let (tx, _rx) = mpsc::channel();
+        let (_tx2, rx2) = mpsc::channel();
         Self {
             state: RaidSheetState::None,
             ui_sender: tx,
@@ -148,15 +147,15 @@ impl RaidSheet {
 
         if is_player_only == true {
             thread::spawn(move || {
-                thread_sender.send(RaidHelperCheckerStatus::Checking(format!("player {}", url.clone())));
+                let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("player {}", url.clone())));
                 let mut player = Player::default();
                 player.name = url.clone();
 
                 let player_data = PlayerChecker::check_player(&player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, raid_id, raid_difficulty, &boss_kills, check_saved_prev_difficulty, None);
                 if player_data.is_some() {
-                    thread_sender.send(RaidHelperCheckerStatus::PlayerResult(player_data.unwrap()));
+                    let _ = thread_sender.send(RaidHelperCheckerStatus::PlayerResult(player_data.unwrap()));
                 } else {
-                    thread_sender.send(RaidHelperCheckerStatus::Error(format!("Could not find player {:?}", url.clone())));
+                    let _ = thread_sender.send(RaidHelperCheckerStatus::Error(format!("Could not find player {:?}", url.clone())));
                 }
             });
             return;
@@ -171,19 +170,19 @@ impl RaidSheet {
                 .send();
 
             if response.is_err() {
-                thread_sender.send(RaidHelperCheckerStatus::Error(format!("Failed to get response: {:?}", response.err())));
+                let _ = thread_sender.send(RaidHelperCheckerStatus::Error(format!("Failed to get response: {:?}", response.err())));
                 return;
             }
 
             let text = response.unwrap().text();
             if text.is_err() {
-                thread_sender.send(RaidHelperCheckerStatus::Error(format!("Failed to get response text: {:?}", text.err())));
+                let _ = thread_sender.send(RaidHelperCheckerStatus::Error(format!("Failed to get response text: {:?}", text.err())));
                 return;
             }
 
             let raid_response_res: Result<RaidHelper, serde_json::Error> = serde_json::from_str(&text.unwrap());
             if raid_response_res.is_err() {
-                thread_sender.send(RaidHelperCheckerStatus::Error(format!("Failed to parse response: {:?}", raid_response_res.err())));
+                let _ = thread_sender.send(RaidHelperCheckerStatus::Error(format!("Failed to parse response: {:?}", raid_response_res.err())));
                 return;
             }
 
@@ -205,7 +204,7 @@ impl RaidSheet {
                     None
                 };
 
-                thread_sender.send(RaidHelperCheckerStatus::Checking(format!("{} {}/{}", player.name, count, viable.len())));
+                let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("{} {}/{}", player.name, count, viable.len())));
                 let player_data = PlayerChecker::check_player(player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, raid_id, raid_difficulty, &boss_kills, check_saved_prev_difficulty, player_url);
                 if player_data.is_some() {
                     vec_player.push(player_data.unwrap());
@@ -235,7 +234,7 @@ impl RaidSheet {
             last_raid.raid_name = raid_response.name.clone();
             last_raid.save();
 
-            thread_sender.send(RaidHelperCheckerStatus::CheckResults(LastRaid {
+            let _ = thread_sender.send(RaidHelperCheckerStatus::CheckResults(LastRaid {
                 raid_url: url,
                 raid_name: raid_response.name,
                 players: vec_player
@@ -253,7 +252,7 @@ impl RaidSheet {
         ctx.request_repaint();
     }
 
-    pub fn draw(&mut self, ctx: &egui::Context, settings: &mut config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig, mut last_raid: &mut config::last_raid::LastRaid, just_checked: &mut bool,
+    pub fn draw(&mut self, ctx: &egui::Context, last_raid: &mut config::last_raid::LastRaid, just_checked: &mut bool,
         checked_player: &mut Option<PlayerData>) {
 
         let message = match self.ui_reciever.try_recv() {
@@ -321,7 +320,7 @@ impl RaidSheet {
                     });
             },
 
-            RaidSheetState::Checking(msg) => {
+            RaidSheetState::Checking(_msg) => {
                 self.update_wait_state(ctx);
                 egui::Window::new("Raid Helper - Parsing Players")
                     .collapsible(false)
@@ -337,7 +336,6 @@ impl RaidSheet {
             
             RaidSheetState::Search(msg) => {
                 let (name, spec, results) = msg;
-                let used: bool;
                 egui::Window::new("Raid Helper - Searching Armory")
                     .collapsible(false)
                     .resizable(false)
@@ -360,26 +358,26 @@ impl RaidSheet {
                         
                         ui.horizontal(|ui| {
                             if ui.button("Skip check").on_hover_text("Skip this player").clicked() {
-                                self.ui_sender.send(RaidHelperUIStatus::SearchResponseSkip());
+                                let _ = self.ui_sender.send(RaidHelperUIStatus::SearchResponseSkip());
                                 wait = true;
                             }
 
                             if ui.button("New name").on_hover_text("Search for a new name").clicked() {
-                                self.ui_sender.send(RaidHelperUIStatus::SearchResponseNewName());
+                                let _ = self.ui_sender.send(RaidHelperUIStatus::SearchResponseNewName());
                                 wait = true;
                             }
                         });
 
                         for (name, realm) in filtered_results.iter() {
                             if ui.button(name).clicked() {
-                                self.ui_sender.send(RaidHelperUIStatus::SearchResponse(Some((name.clone(), realm.clone()))));
+                                let _ = self.ui_sender.send(RaidHelperUIStatus::SearchResponse(Some((name.clone(), realm.clone()))));
                                 wait = true;
                             }
                         }
                     });
             },
 
-            RaidSheetState::Error(msg) => {
+            RaidSheetState::Error(_msg) => {
                 egui::Window::new("Raid Helper - Error")
                     .collapsible(false)
                     .resizable(false)
@@ -393,7 +391,7 @@ impl RaidSheet {
                     });
             },
 
-            RaidSheetState::Question(msg) => {
+            RaidSheetState::Question(_msg) => {
                 egui::Window::new("Raid Helper - Question")
                     .collapsible(false)
                     .resizable(false)
@@ -403,15 +401,15 @@ impl RaidSheet {
                             _ => "No data yet.".to_owned()
                         });
                         if ui.button("Yes").clicked() {
-                            self.ui_sender.send(RaidHelperUIStatus::Answer(true));
+                            let _ = self.ui_sender.send(RaidHelperUIStatus::Answer(true));
                         }
                         if ui.button("No").clicked() {
-                            self.ui_sender.send(RaidHelperUIStatus::Answer(false));
+                            let _ = self.ui_sender.send(RaidHelperUIStatus::Answer(false));
                         }
                     });
             },
             
-            RaidSheetState::QuestionStringSkip(msg) => {
+            RaidSheetState::QuestionStringSkip(MAX_COMPUTE_SHADER_STORAGE_BLOCKSmsg) => {
                 egui::Window::new("Raid Helper - Question")
                     .collapsible(false)
                     .resizable(false)
@@ -423,18 +421,18 @@ impl RaidSheet {
 
                         let response = ui.text_edit_singleline(&mut self.question_string);
                         if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                            self.ui_sender.send(RaidHelperUIStatus::AnswerStringSkip(Some(self.question_string.clone())));
+                            let _ = self.ui_sender.send(RaidHelperUIStatus::AnswerStringSkip(Some(self.question_string.clone())));
                             self.state = RaidSheetState::Wait;
                         }
 
                         ui.horizontal(|ui| {
                             if ui.button("Submit").clicked() {
-                                self.ui_sender.send(RaidHelperUIStatus::AnswerStringSkip(Some(self.question_string.clone())));
+                                let _ = self.ui_sender.send(RaidHelperUIStatus::AnswerStringSkip(Some(self.question_string.clone())));
                                 self.state = RaidSheetState::Wait;
                             }
     
                             if ui.button("Skip").clicked() {
-                                self.ui_sender.send(RaidHelperUIStatus::AnswerStringSkip(None));
+                                let _ = self.ui_sender.send(RaidHelperUIStatus::AnswerStringSkip(None));
                                 self.state = RaidSheetState::Wait;
                             }
                         }); 

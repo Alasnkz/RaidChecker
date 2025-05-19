@@ -1,7 +1,6 @@
-use chrono::format;
 use egui::{CentralPanel, Hyperlink, SidePanel, Ui};
 
-use crate::{checker::{armory_checker::AOTCStatus, check_player::PlayerData}, config::{self, settings::{self, PriorityChecks}}};
+use crate::{checker::{armory_checker::AOTCStatus, check_player::PlayerData}, config::{self, settings::{PriorityChecks}}};
 
 pub struct SignUpsUI {
     pub target_player: Option<PlayerData>
@@ -16,7 +15,7 @@ impl Default for SignUpsUI {
 }
 
 impl SignUpsUI {
-    pub fn draw_signups(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, expansion_config: &config::expansion_config::ExpansionsConfig, primary_people: &Vec<PlayerData>, 
+    pub fn draw_signups(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, primary_people: &Vec<PlayerData>, 
         queued_people: &Vec<PlayerData>, should_recheck: &mut bool, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> bool {
         
         if *clear_target {
@@ -54,7 +53,7 @@ impl SignUpsUI {
 
         CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                self.draw_player_info(ctx, ui, settings, None);
+                self.draw_player_info(ui, settings, None);
             }); 
         });
 
@@ -64,7 +63,7 @@ impl SignUpsUI {
                 .resizable(true)
                 .show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        self.draw_player_info(ctx, ui, settings, checked_player.clone());
+                        self.draw_player_info(ui, settings, checked_player.clone());
                     });
                     if ui.button("Close").clicked() {
                         *checked_player = None;
@@ -117,15 +116,14 @@ impl SignUpsUI {
                         let buff_colour = settings.buff_colour.unwrap();
                         return egui::Color32::from_rgb(buff_colour[0], buff_colour[1], buff_colour[2]);
                     }
-                },
-                _ => {}
+                }
             }
         }
 
         egui::Color32::GREEN
     }
 
-    pub fn draw_player_info(&mut self, ctx: &eframe::egui::Context, ui: &mut Ui, settings: &mut config::settings::Settings, checked_player: Option<PlayerData>) {
+    pub fn draw_player_info(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, checked_player: Option<PlayerData>) {
 
         let player = if checked_player.is_some() {
             checked_player.unwrap()

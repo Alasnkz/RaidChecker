@@ -2,7 +2,6 @@ use std::fs::{self, File};
 use std::path::Path;
 use std::io::{self, Write};
 
-use crate::checker::armory_checker::AOTCStatus;
 use crate::checker::check_player::PlayerData;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]

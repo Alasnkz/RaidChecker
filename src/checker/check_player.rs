@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::mpsc::{Receiver, Sender}};
+use std::sync::mpsc::{Receiver, Sender};
 
 use regex::Regex;
 use reqwest::blocking::Client;
@@ -65,7 +65,6 @@ enum SearchPromptResult {
     Url(String),
     Error(String),
     Skipped,
-    Invalid
 }
 
 impl PlayerChecker {
@@ -218,9 +217,9 @@ impl PlayerChecker {
 
     fn prompt_for_name(player: Option<&Player>, thread_sender: &Sender<RaidHelperCheckerStatus>, thread_reciever: &Receiver<RaidHelperUIStatus>) -> Option<String> {
         if player.is_some() {
-            thread_sender.send(RaidHelperCheckerStatus::QuestionStringSkip(format!("Could not find {} (signed as spec {}) - please input a name for this character...", player.unwrap().name, player.unwrap().specName.clone().unwrap_or("Unknown".to_string())))).unwrap();
+            let _ = thread_sender.send(RaidHelperCheckerStatus::QuestionStringSkip(format!("Could not find {} (signed as spec {}) - please input a name for this character...", player.unwrap().name, player.unwrap().specName.clone().unwrap_or("Unknown".to_string())))).unwrap();
         } else {
-            thread_sender.send(RaidHelperCheckerStatus::QuestionStringSkip(format!("Please input a name for this character..."))).unwrap();
+            let _ = thread_sender.send(RaidHelperCheckerStatus::QuestionStringSkip(format!("Please input a name for this character..."))).unwrap();
         }
         
         match thread_reciever.recv().unwrap() {

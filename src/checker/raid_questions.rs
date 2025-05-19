@@ -5,7 +5,6 @@ use crate::config;
 #[derive(PartialEq)]
 pub(crate) enum QuestionState {
     None,
-    AskAOTC,
     AskSaved,
     AskSavedBosses,
     AskRaidHelperURL
@@ -60,7 +59,7 @@ fn check_raidhelper_url(url: String) -> Option<String> {
                 return Some(format!("https://raid-helper.dev/api/v2/events/{id}"));
             },
 
-            Some(MatchType::ApiV2Event(id)) => {
+            Some(MatchType::ApiV2Event(_id)) => {
                 return Some(url)
             },
 
@@ -69,7 +68,6 @@ fn check_raidhelper_url(url: String) -> Option<String> {
             }
         }
     }
-    return None;
 }
 
 impl Default for RaidCheckQuestions {
@@ -91,7 +89,7 @@ impl Default for RaidCheckQuestions {
 }
 
 impl RaidCheckQuestions {
-    pub fn ask_questions(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, expansion_config: &config::expansion_config::ExpansionsConfig, url: Option<String>, is_player: Option<bool>) -> Option<(String, bool, i32, i32, Vec<i32>, bool, bool)> {
+    pub fn ask_questions(&mut self, ctx: &eframe::egui::Context, expansion_config: &config::expansion_config::ExpansionsConfig, url: Option<String>, is_player: Option<bool>) -> Option<(String, bool, i32, i32, Vec<i32>, bool, bool)> {
         let mut send_it: Option<(String, bool, i32, i32, Vec<i32>, bool, bool)> = None;
         if url.clone().is_some() {
             self.raid_helper_url = url.clone().unwrap();
@@ -103,36 +101,6 @@ impl RaidCheckQuestions {
         }
 
         match self.state {
-            QuestionState::AskAOTC => {
-                egui::Window::new("Would you like to check for Ahead of the Curve?")
-                    .collapsible(false)
-                    .resizable(false)
-                    .show(ctx, |ui| {
-                        ui.label("Would you like to check for Ahead of the Curve?");
-                        ui.horizontal(|ui| {
-                            if ui.button("Yes").on_hover_ui(|ui| {
-                                ui.label("Checking for Ahead of the Curve will require the user to have killed the last boss of the raid on Heroic difficulty.");
-                            }).clicked() {
-                                self.state = QuestionState::AskSaved;
-                                self.ahead_of_the_curve = true;
-                            };
-
-                            if ui.button("No").on_hover_ui(|ui| {
-                                ui.label("Checking for Ahead of the Curve will not be required.");
-                            }).clicked() {
-                                self.state = QuestionState::AskSaved;
-                                self.ahead_of_the_curve = false;
-                            };
-
-                            if ui.button("Cancel").on_hover_ui(|ui| {
-                                ui.label("Cancel the raid check.");
-                            }).clicked() {
-                                self.state = QuestionState::None;
-                            };
-                        });
-                    });
-            },
-
             QuestionState::AskSaved => {
                 egui::Window::new("Would you like to check if the character(s) are saved?")
                     .collapsible(false)

@@ -1,6 +1,4 @@
-use egui::{Color32, Rgba};
-
-use crate::config::{self, settings::PriorityChecks};
+use crate::config::{self};
 
 pub(crate) struct SettingsUi {
     pub draw_item_requirements: bool,
