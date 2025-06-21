@@ -5,7 +5,8 @@ pub struct EnchantmentSlotSetting {
     pub require_slot: bool,
     pub require_latest: bool,
     pub require_sockets: i32,
-
+    #[serde(default = "default_require_greater")]
+    pub require_special_item: bool,
     #[serde(default = "default_require_greater")]
     pub require_greater: bool
 }
@@ -21,6 +22,7 @@ pub enum PriorityChecks {
     Enchantments = 2,
     RaidBuff = 3,
     Unkilled = 4,
+    SpecialItem = 5,
 }
 
 impl PriorityChecks {
@@ -31,6 +33,7 @@ impl PriorityChecks {
             PriorityChecks::Enchantments => "Enchantment issue",
             PriorityChecks::RaidBuff => "Raid Buff missing",
             PriorityChecks::Unkilled => "Unkilled Bosses",
+            PriorityChecks::SpecialItem => "Special Item",
         }
     }
 }
@@ -41,6 +44,7 @@ impl Default for EnchantmentSlotSetting {
             require_slot: false,
             require_latest: false,
             require_sockets: 0,
+            require_special_item: false,
             require_greater: false,
         }
     }
@@ -71,7 +75,7 @@ impl EnchantmentSlots {
             (&mut self.foot, "feet"),
             (&mut self.hand, "hand"),
             (&mut self.head, "head"),
-            (&mut self.ring, "ring"),
+            (&mut self.ring, "finger"),
             (&mut self.leg, "leg"),
             (&mut self.neck, "neck"),
             (&mut self.shoulder, "shoulder"),
@@ -89,7 +93,7 @@ impl EnchantmentSlots {
             (self.foot.clone(), "feet"),
             (self.hand.clone(), "hand"),
             (self.head.clone(), "head"),
-            (self.ring.clone(), "ring"),
+            (self.ring.clone(), "finger"),
             (self.leg.clone(), "leg"),
             (self.neck.clone(), "neck"),
             (self.shoulder.clone(), "shoulder"),
@@ -121,6 +125,7 @@ impl Default for EnchantmentSlots {
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Settings {
     pub average_ilvl: i32,
+    pub embelishments: i32,
     pub raid_id: i32,
     pub raid_difficulty: i32,
     pub raid_difficulty_boss_id_kills: Vec<i32>,
@@ -141,7 +146,9 @@ fn default_check_priority() -> Vec<PriorityChecks> {
         PriorityChecks::Ilvl,
         PriorityChecks::Unkilled,
         PriorityChecks::Enchantments,
+        PriorityChecks::SpecialItem,
         PriorityChecks::RaidBuff,
+        
     ]
 }
 
@@ -149,6 +156,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             average_ilvl: 0,
+            embelishments: 0,
             raid_id: -1,
             raid_difficulty: 0,
             raid_difficulty_boss_id_kills: Vec::new(),
@@ -164,6 +172,7 @@ impl Default for Settings {
                 PriorityChecks::Ilvl,
                 PriorityChecks::Unkilled,
                 PriorityChecks::Enchantments,
+                PriorityChecks::SpecialItem,
                 PriorityChecks::RaidBuff,
             ],
         }

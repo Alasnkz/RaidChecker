@@ -1,4 +1,4 @@
-use crate::config::{self};
+use crate::config::{self, expansion_config::ExpansionRaid};
 
 pub(crate) struct SettingsUi {
     pub draw_item_requirements: bool,
@@ -26,15 +26,19 @@ impl SettingsUi {
                 ui.vertical(|ui| {
                     if ui.button("Item Requirements").clicked() {
                         self.draw_item_requirements = !self.draw_item_requirements;
+                        settings.save_mut();
                     }
                     if ui.button("Raid Requirements").clicked() {
                         self.draw_raid_requirements = !self.draw_raid_requirements;
+                        settings.save_mut();
                     }
                     if ui.button("Check priority").clicked() {
                         self.draw_priority = !self.draw_priority;
+                        settings.save_mut();
                     }
                     if ui.button("Modify colours").clicked() {
                         self.colour_settings = !self.colour_settings;
+                        settings.save_mut();
                     }
                 });
                 if ui.button("Close").clicked() {
@@ -43,7 +47,7 @@ impl SettingsUi {
             });
 
         if self.draw_item_requirements {
-            if Self::draw_item_requirements_settings(ctx, settings) {
+            if Self::draw_item_requirements_settings(ctx, settings, expansions) {
                 self.draw_item_requirements = false;
                 settings.save_mut();
             }
@@ -72,21 +76,94 @@ impl SettingsUi {
         close
     }
 
-    fn draw_item_requirements_settings(ctx: &eframe::egui::Context, settings: &mut config::settings::Settings) -> bool {
+    fn draw_item_requirements_settings(ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig) -> bool {
         let mut close: bool = false;
+        let latest_expansion = expansions.latest_expansion.clone().unwrap();
+        let current_season = latest_expansion.latest_season.clone();
         egui::Window::new("Raid Item Requirements")
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
-                    for item in settings.enchantments.as_array_mut().iter_mut() {
-                        ui.collapsing(item.1, |ui| {
-                            ui.checkbox(&mut item.0.require_slot, "Require enchantment in slot");
-                            ui.checkbox(&mut item.0.require_latest, "Require latest expansion enchantment");
-                            ui.add(egui::Slider::new(&mut item.0.require_sockets, 0..=10).text("Sockets required"));
-                            ui.checkbox(&mut item.0.require_greater, "Require greater enchantment").on_hover_text("Checks to see if the enchantment is a greater version of the enchantment, notable only for corruptions (TWW S2).");
-                        });
-                    }
+                    ui.add(egui::Slider::new(&mut settings.embelishments, 0..=2).text("Embelishments required"));
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        for item in settings.enchantments.as_array_mut().iter_mut() {
+                            let seasonal_item = current_season.as_ref().and_then(|s| {
+                                if s.seasonal_gear.is_some() {
+                                    return s.seasonal_gear.as_ref().unwrap().iter().find(|x| x.slot == item.1);
+                                }
+                                None
+                            });
+
+                            let agnostic_item = expansions.agnostic_gear_enchants.iter().find(|x| x.slot == item.1);
+                            let proper_item = latest_expansion.gear_enchants.iter().find(|x| x.slot == item.1);
+
+                            let has_enchant = (proper_item.is_some() && !proper_item.unwrap().enchant_ids.is_empty()) || (seasonal_item.is_some() && !seasonal_item.unwrap().enchant_ids.is_empty()) ||
+                                (seasonal_item.is_some() && seasonal_item.unwrap().lesser_enchant_ids.is_some() && !seasonal_item.unwrap().lesser_enchant_ids.as_ref().unwrap().is_empty()) ||
+                                (agnostic_item.is_some() && !agnostic_item.unwrap().enchant_ids.is_empty());
+
+                            let has_expansional_enchant = proper_item.is_some() && !proper_item.unwrap().enchant_ids.is_empty();
+                            let has_lesser_enchants = (proper_item.is_some() && proper_item.unwrap().lesser_enchant_ids.is_some() && !proper_item.unwrap().lesser_enchant_ids.as_ref().unwrap().is_empty()) || 
+                                (seasonal_item.is_some() && seasonal_item.unwrap().lesser_enchant_ids.is_some() && !seasonal_item.unwrap().lesser_enchant_ids.as_ref().unwrap().is_empty()) || 
+                                (agnostic_item.is_some() && agnostic_item.unwrap().lesser_enchant_ids.is_some() && !agnostic_item.unwrap().lesser_enchant_ids.as_ref().unwrap().is_empty());
+
+                            let has_special_item = seasonal_item.is_some() && seasonal_item.unwrap().special_item_id.is_some();
+
+                            let has_socket = (proper_item.is_some() && proper_item.unwrap().has_socket) || 
+                                (seasonal_item.is_some() && seasonal_item.unwrap().has_socket);
+
+                            if !has_enchant && !has_expansional_enchant && item.0.require_slot {
+                                println!("{} has a enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
+                                item.0.require_slot = false;
+                            }
+
+                            if !has_enchant && !has_expansional_enchant && item.0.require_latest {
+                                println!("{} has a latest enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
+                                item.0.require_latest = false;
+                            }
+
+
+                            if !has_special_item && item.0.require_special_item {
+                                println!("{} has a special item requirement, but there are no special items associated with it, turning it off.", item.1);
+                                item.0.require_special_item = false;
+                            }
+
+                            if !has_socket && item.0.require_sockets > 0 {
+                                println!("{} has a socket requirement, but the slot does not require sockets, turning it off.", item.1);
+                                item.0.require_sockets = 0;
+                            }
+
+                            if !has_lesser_enchants && item.0.require_greater {
+                                println!("{} has a greater enchantment requirement, but there are no lesser enchantments associated with it, turning it off.", item.1);
+                                item.0.require_greater = false;
+                            }
+
+                            
+                            if !has_enchant && !has_expansional_enchant && !has_lesser_enchants && !has_special_item && !has_socket {
+                                continue; // Skip if no requirements
+                            }
+
+                            ui.collapsing(item.1, |ui| {
+                                if has_enchant {
+                                    ui.checkbox(&mut item.0.require_slot, "Require enchantment in slot");
+                                    ui.checkbox(&mut item.0.require_latest, "Require recent enchantment").on_hover_text("Checks to see if the enchantment is from the most recent patch (where applicable, if not it will check the latest expansion).");
+                                }
+
+                                if has_enchant && has_lesser_enchants {
+                                    ui.checkbox(&mut item.0.require_greater, "Require greater enchantment").on_hover_text("Checks to see if the enchantment is a greater version of the enchantment, notable only for corruptions (TWW S2).");
+                                }
+
+                                if has_special_item {
+                                    ui.checkbox(&mut item.0.require_special_item, "Require special item").on_hover_text("Require a special item i.e. DISC belt");
+                                }
+                                
+                                if has_socket {
+                                    ui.add(egui::Slider::new(&mut item.0.require_sockets, 0..=10).text("Sockets required"));
+                                }
+                                
+                            });
+                        }
+                    });
                 });
                 if ui.button("Close").clicked() {
                     close = true;
@@ -105,18 +182,28 @@ impl SettingsUi {
                 ui.vertical(|ui| {
                     ui.add(egui::Slider::new(&mut settings.average_ilvl, 0..=1000).text("Average item level required"));
 
+                    if settings.raid_id == -1 || expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(settings.raid_id).is_none() {
+                        settings.raid_id = expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id;
+                    }
+
                     egui::ComboBox::from_label("Killed bosses check")
-                        .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().raids.get(settings.raid_id as usize).unwrap().identifier))
+                        .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(settings.raid_id).unwrap_or(&ExpansionRaid::default()).identifier))
                         .show_ui(ui, |ui| {
-                            for raid in expansion_config.latest_expansion.as_ref().unwrap().raids.iter() {
-                                ui.selectable_value(&mut settings.raid_id, raid.id, raid.identifier.clone());
+                            for season in expansion_config.latest_expansion.as_ref().unwrap().seasons.iter() {
+                                for raid in season.raids.iter() {
+                                    ui.selectable_value(&mut settings.raid_id, raid.id, raid.identifier.clone());
+                                }
+
+                                if season.seasonal_identifier == expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_identifier {
+                                    break;
+                                }
                             }
                         });
 
                     egui::ComboBox::from_label("Selected difficulty")
-                        .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().raids.get(settings.raid_id as usize).unwrap().difficulty.get(settings.raid_difficulty as usize).unwrap().difficulty_name))
+                        .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(settings.raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.get(settings.raid_difficulty as usize).unwrap().difficulty_name))
                         .show_ui(ui, |ui| {
-                            for difficulty in expansion_config.latest_expansion.as_ref().unwrap().raids.get(settings.raid_id as usize).unwrap().difficulty.iter() {
+                            for difficulty in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(settings.raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.iter() {
                                 ui.selectable_value(&mut settings.raid_difficulty, difficulty.id, difficulty.difficulty_name.clone());
                             }
                         });
@@ -126,7 +213,7 @@ impl SettingsUi {
                             ui.label("Enable all bosses for this raid.");
                         }).clicked() {
                             settings.raid_difficulty_boss_id_kills.clear();
-                            for i in 0..expansion_config.latest_expansion.as_ref().unwrap().raids.iter().find(|x| x.id == settings.raid_id).unwrap().boss_names.len() {
+                            for i in 0..expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(settings.raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.len() {
                                 settings.raid_difficulty_boss_id_kills.push(i as i32);
                             }
                         };
@@ -139,7 +226,7 @@ impl SettingsUi {
                     });
 
                     let mut bid = 0;
-                    for boss in expansion_config.latest_expansion.as_ref().unwrap().raids.iter().find(|x| x.id == settings.raid_id).unwrap().boss_names.iter() {
+                    for boss in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(settings.raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.iter() {
                         let mut tmp = settings.raid_difficulty_boss_id_kills.contains(&bid);
                         if ui.checkbox(&mut tmp, boss).changed() {
                             if tmp {

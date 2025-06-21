@@ -215,6 +215,9 @@ impl RaidSheet {
                         status: player.status.clone(),
                         unkilled_bosses: Vec::new(),
                         bad_gear: Vec::new(),
+                        bad_socket: Vec::new(),
+                        bad_special_item: Vec::new(),
+                        num_embelishments: -1,
                         ilvl: 0,
                         saved_bosses: Vec::new(),
                         aotc_status: super::armory_checker::AOTCStatus::None,
@@ -409,7 +412,7 @@ impl RaidSheet {
                     });
             },
             
-            RaidSheetState::QuestionStringSkip(MAX_COMPUTE_SHADER_STORAGE_BLOCKSmsg) => {
+            RaidSheetState::QuestionStringSkip(_msg) => {
                 egui::Window::new("Raid Helper - Question")
                     .collapsible(false)
                     .resizable(false)

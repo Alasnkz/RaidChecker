@@ -51,6 +51,9 @@ pub struct PlayerData {
     pub status: String,
     pub unkilled_bosses: Vec<String>,
     pub bad_gear: Vec<String>,
+    pub bad_socket: Vec<String>,
+    pub bad_special_item: Vec<String>,
+    pub num_embelishments: i32,
     pub ilvl: i32,
     pub saved_bosses: Vec<String>,
     pub aotc_status: AOTCStatus,
@@ -109,6 +112,9 @@ impl PlayerChecker {
                             status: player.status.clone(),
                             unkilled_bosses: Vec::new(),
                             bad_gear: Vec::new(),
+                            bad_socket: Vec::new(),
+                            bad_special_item: Vec::new(),
+                            num_embelishments: -1,
                             ilvl: 0,
                             saved_bosses: Vec::new(),
                             aotc_status: super::armory_checker::AOTCStatus::None,
@@ -141,6 +147,9 @@ impl PlayerChecker {
                         status: player.status.clone(),
                         unkilled_bosses: Vec::new(),
                         bad_gear: Vec::new(),
+                        bad_socket: Vec::new(),
+                        bad_special_item: Vec::new(),
+                        num_embelishments: -1,
                         ilvl: 0,
                         saved_bosses: Vec::new(),
                         aotc_status: super::armory_checker::AOTCStatus::None,
@@ -173,6 +182,9 @@ impl PlayerChecker {
                             status: player.status.clone(),
                             unkilled_bosses: Vec::new(),
                             bad_gear: Vec::new(),
+                            bad_socket: Vec::new(),
+                            bad_special_item: Vec::new(),
+                            num_embelishments: -1,
                             ilvl: 0,
                             saved_bosses: Vec::new(),
                             aotc_status: super::armory_checker::AOTCStatus::None,
@@ -192,7 +204,7 @@ impl PlayerChecker {
 
         let data = armory_data.unwrap();
         let unkilled_bosses = ArmoryChecker::check_raid_boss_kills(&data, settings);
-        let bad_gear = ArmoryChecker::check_gear(&data, settings, expansions);
+        let (bad_enchant_gear, bad_socket_gear, bad_special_item, embelishments) = ArmoryChecker::check_gear(&data, settings, expansions);
         let ilvl = data.character.average_item_level;
         let saved_bosses = ArmoryChecker::check_saved_bosses(&data, raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty);
         let aotc_status = ArmoryChecker::check_aotc(url.clone(), &data, expansions, raid_id);
@@ -203,7 +215,10 @@ impl PlayerChecker {
             name: player.name.clone(),
             status: player.status.clone(),
             unkilled_bosses: unkilled_bosses,
-            bad_gear: bad_gear,
+            bad_gear: bad_enchant_gear,
+            bad_socket: bad_socket_gear,
+            bad_special_item: bad_special_item,
+            num_embelishments: embelishments,
             ilvl: ilvl,
             saved_bosses: saved_bosses,
             aotc_status: aotc_status,
@@ -280,7 +295,7 @@ impl PlayerChecker {
             Some(p) => Some(p.specName.clone().unwrap()),
             None => None
         };
-        thread_sender.send(RaidHelperCheckerStatus::Search((name.clone(), spec, chars))).unwrap();
+        let _ = thread_sender.send(RaidHelperCheckerStatus::Search((name.clone(), spec, chars))).unwrap();
         let name_url = match thread_reciever.recv().unwrap() {
             RaidHelperUIStatus::SearchResponse(answer) => {
                 answer

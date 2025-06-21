@@ -1,6 +1,24 @@
 {
-  "rhcu_version": 1,
+  "rhcu_version": "1.0.0",
+  "modified": 1750447959,
   "latest_expansion_identifier": "TWW",
+  "agnostic_gear_enchants": [
+    {
+      "slot": "weapon",
+      "sub_slots": [
+        "twohweapon"
+      ],
+      "enchant_ids": [
+        3847,
+        3368,
+        3370,
+        6241,
+        6244,
+        6242,
+        6245
+      ]
+    }
+  ],
   "expansions": [
     {
       "name": "War Within",
@@ -14,13 +32,6 @@
             "twohweapon"
           ],
           "enchant_ids": [
-            3847,
-            3368,
-            3370,
-            6241,
-            6244,
-            6242,
-            6245,
             7449,
             7450,
             7451,
@@ -90,7 +101,8 @@
             7383,
             7384,
             7385
-          ]
+          ],
+          "has_socket": true
         },
         {
           "slot": "feet",
@@ -147,7 +159,8 @@
             7350,
             7351,
             7352
-          ]
+          ],
+          "has_socket": true
         },
         {
           "slot": "back",
@@ -225,110 +238,213 @@
           ]
         },
         {
+          "slot": "waist",
+          "has_socket": true
+        },
+        {
           "slot": "head",
-          "sub_slots": [],
-          "enchant_ids": [
-            7914,
-            7915,
-            7917,
-            7922,
-            7924,
-            7925,
-            7927,
-            7928,
-            7930,
-            7931,
-            7933
-          ],
-          "lesser_enchant_ids": [
-            7915,
-            7922,
-            7925,
-            7928,
-            7931
-          ]
+          "has_socket": true
         }
       ],
-      "raids": [
+
+      "seasons": [
         {
-          "identifier": "Nerub-ar Palace",
-          "difficulty": [
+          "seasonal_identifier": "S1",
+          "raids": [
             {
-              "difficulty_name": "Looking for Raid",
-              "id": 0
-            },
-            {
-              "difficulty_name": "Normal",
-              "id": 1
-            },
-            {
-              "difficulty_name": "Heroic",
-              "id": 2
-            },
-            {
-              "difficulty_name": "Mythic",
-              "id": 3
+              "identifier": "Nerub-ar Palace",
+              "difficulty": [
+                {
+                  "difficulty_name": "Looking for Raid",
+                  "id": 0
+                },
+                {
+                  "difficulty_name": "Normal",
+                  "id": 1
+                },
+                {
+                  "difficulty_name": "Heroic",
+                  "id": 2
+                },
+                {
+                  "difficulty_name": "Mythic",
+                  "id": 3
+                }
+              ],
+              "id": 0,
+              "boss_names": [
+                "Ulgrax the Devourer",
+                "The Bloodbound Horror",
+                "Sikran, Captain of the Sureki",
+                "Rasha'nan",
+                "Broodtwister Ovi'nax",
+                "Nexus-Princess Ky'veza",
+                "The Silken Court",
+                "Queen Ansurek"
+              ],
+              "aotc_achievement_id": 40253
             }
-          ],
-          "id": 0,
-          "boss_names": [
-            "Ulgrax the Devourer",
-            "The Bloodbound Horror",
-            "Sikran, Captain of the Sureki",
-            "Rasha'nan",
-            "Broodtwister Ovi'nax",
-            "Nexus-Princess Ky'veza",
-            "The Silken Court",
-            "Queen Ansurek"
-          ],
-          "aotc_achievement_id": 40253
+          ]
         },
 
         {
-          "identifier": "Liberation of Undermine",
-          "difficulty": [
+          "seasonal_identifier": "S2",
+          "raids": [
             {
-              "difficulty_name": "Looking for Raid",
-              "id": 0
-            },
-            {
-              "difficulty_name": "Normal",
-              "id": 1
-            },
-            {
-              "difficulty_name": "Heroic",
-              "id": 2
-            },
-            {
-              "difficulty_name": "Mythic",
-              "id": 3
+              "identifier": "Liberation of Undermine",
+              "difficulty": [
+                {
+                  "difficulty_name": "Looking for Raid",
+                  "id": 0
+                },
+                {
+                  "difficulty_name": "Normal",
+                  "id": 1
+                },
+                {
+                  "difficulty_name": "Heroic",
+                  "id": 2
+                },
+                {
+                  "difficulty_name": "Mythic",
+                  "id": 3
+                }
+              ],
+              "id": 1,
+              "boss_names": [
+                "Vexie Fullthrottle and The Geargrinders",
+                "Cauldron of Carnage",
+                "Rik Reverb",
+                "Stix Bunkjunker",
+                "Sprocketmonger Lockenstock",
+                "One-Armed Bandit",
+                "Mug'Zee",
+                "Chrome King Gallywix"
+              ],
+              "aotc_achievement_id": 41298,
+              
+              "reputation": {
+                "raid_rep_slug": "gallagio-loyalty-rewards-club",
+                "raid_buff_renowns": [
+                  4, 7, 10, 13, 16, 19
+                ],
+                "renown_start": 1741147200,
+                "max_renown_value_weekly": 5000,
+                "renown_level_value": 2500,
+                "buff_size": 3
+              }
             }
           ],
-          "id": 1,
-          "boss_names": [
-            "Vexie Fullthrottle and The Geargrinders",
-            "Cauldron of Carnage",
-            "Rik Reverb",
-            "Stix Bunkjunker",
-            "Sprocketmonger Lockenstock",
-            "One-Armed Bandit",
-            "Mug'Zee",
-            "Chrome King Gallywix"
-          ],
-          "aotc_achievement_id": 41298,
-          
-          "reputation": {
-            "raid_rep_slug": "gallagio-loyalty-rewards-club",
-            "raid_buff_renowns": [
-              4, 7, 10, 13, 16, 19
-            ],
-            "renown_start": 1741147200,
-            "max_renown_value_weekly": 5000,
-            "renown_level_value": 2500,
-            "buff_size": 3
-          }
+
+          "seasonal_gear": [
+            {
+              "slot": "head",
+              "sub_slots": [],
+              "enchant_ids": [
+                7914,
+                7915,
+                7917,
+                7922,
+                7924,
+                7925,
+                7927,
+                7928,
+                7930,
+                7931,
+                7933
+              ],
+              "lesser_enchant_ids": [
+                7915,
+                7922,
+                7925,
+                7928,
+                7931
+              ]
+            },
+
+            {
+              "slot": "waist",
+              "sub_slots": [],
+              "enchant_ids": [],
+              "lesser_enchant_ids": [],
+              "special_item_id": [
+                245964,
+                242664,
+                245965,
+                245966
+              ]
+            }
+          ]
+        },
+
+        {
+          "seasonal_identifier": "S3",
+          "season_start": 9999999999,
+          "raids": [
+            {
+              "identifier": "Manaforge Omega",
+              "difficulty": [
+                {
+                  "difficulty_name": "Looking for Raid",
+                  "id": 0
+                },
+                {
+                  "difficulty_name": "Normal",
+                  "id": 1
+                },
+                {
+                  "difficulty_name": "Heroic",
+                  "id": 2
+                },
+                {
+                  "difficulty_name": "Mythic",
+                  "id": 3
+                }
+              ],
+              "id": 2,
+              "boss_names": [
+                "Plexus Sentinel",
+                "Loom'ithar",
+                "Soulbinder Naazindhri",
+                "Forgeweaver Araz",
+                "The Soul Hunters",
+                "Fractillus",
+                "Nexus-King Salhadaar",
+                "Dimensius, the All-Devouring"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Midnight",
+      "identifier": "MN",
+      "reputation_slug": "midnight",
+      "gear_embelishment_bonus_id": 0,
+      "gear_enchants": [],
+      "seasons": [
+        {
+          "seasonal_identifier": "S1",
+          "raids": [],
+          "season_start": 0
+        }
+      ]
+    },
+    {
+      "name": "The Last Titan",
+      "identifier": "TLT",
+      "reputation_slug": "the-last-titan",
+      "gear_embelishment_bonus_id": 0,
+      "gear_enchants": [],
+      "seasons": [
+        {
+          "seasonal_identifier": "S1",
+          "raids": [],
+          "season_start": 0
         }
       ]
     }
+
   ]
 }

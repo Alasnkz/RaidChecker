@@ -111,6 +111,13 @@ impl SignUpsUI {
                     }
                 },
 
+                PriorityChecks::SpecialItem => {
+                    if player.bad_gear.len() > 0 {
+                        let bad_gear_colour = settings.bad_gear_colour.unwrap();
+                        return egui::Color32::from_rgb(bad_gear_colour[0], bad_gear_colour[1], bad_gear_colour[2]);
+                    }
+                },
+
                 PriorityChecks::RaidBuff => {
                     if player.buff_status > 0 {
                         let buff_colour = settings.buff_colour.unwrap();
@@ -177,15 +184,38 @@ impl SignUpsUI {
             ui.label("");
         }
 
+        let gear_issue = player.bad_gear.len() > 0 || player.bad_socket.len() > 0 || player.bad_special_item.len() > 0 || (player.num_embelishments != -1 && player.num_embelishments < settings.embelishments);
+        if gear_issue {
+            ui.label(format!("{} has gear that does not meet the requirements:", player.name.clone()));
+        }
+
         if player.bad_gear.len() > 0 {
-            ui.label(format!("{} has gear that does not reach the requirements:", player.name.clone()));
             for gear in player.bad_gear.iter() {
                 ui.label(format!("\t{}", gear));
             }
+        }
+
+        if player.bad_special_item.len() > 0 {
+            for gear in player.bad_special_item.iter() {
+                ui.label(format!("\t{}", gear));
+            }
+        }
+
+        if player.bad_socket.len() > 0 {
+            for gear in player.bad_socket.iter() {
+                ui.label(format!("\t{}", gear));
+            }
+        }
+
+        if player.num_embelishments != -1 && player.num_embelishments < settings.embelishments {
+            ui.label(egui::RichText::new(format!("{} is missing {} embelishments", player.name.clone(), settings.embelishments - player.num_embelishments)).color(egui::Color32::from_rgb(255, 0, 0)));
+        }
+        
+        if gear_issue {
             ui.label("");
             ui.label("");
         }
-
+        
         if player.buff_status > 0 {
 
             ui.label(egui::RichText::new(format!("{} is missing {}% raid buff!", player.name.clone(), player.buff_status * 3)).color(egui::Color32::from_rgb(255, 255, 0)));
@@ -209,7 +239,7 @@ impl SignUpsUI {
             } else {
                 ui.label(format!("{} has AOTC on {}", player.name.clone(), match player.aotc_status {
                     AOTCStatus::Account => {
-                        "their account, but not this character."
+                        "their account, but not on this character."
                     },
 
                     AOTCStatus::Character => {

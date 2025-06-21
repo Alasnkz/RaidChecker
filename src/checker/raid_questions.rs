@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::config;
+use crate::config::{self, expansion_config::ExpansionRaid};
 
 #[derive(PartialEq)]
 pub(crate) enum QuestionState {
@@ -89,8 +89,8 @@ impl Default for RaidCheckQuestions {
 }
 
 impl RaidCheckQuestions {
-    pub fn ask_questions(&mut self, ctx: &eframe::egui::Context, expansion_config: &config::expansion_config::ExpansionsConfig, url: Option<String>, is_player: Option<bool>) -> Option<(String, bool, i32, i32, Vec<i32>, bool, bool)> {
-        let mut send_it: Option<(String, bool, i32, i32, Vec<i32>, bool, bool)> = None;
+    pub fn ask_questions(&mut self, ctx: &eframe::egui::Context, expansion_config: &config::expansion_config::ExpansionsConfig, url: Option<String>, is_player: Option<bool>) -> Option<(String, i32, i32, Vec<i32>, bool, bool)> {
+        let mut send_it: Option<(String, i32, i32, Vec<i32>, bool, bool)> = None;
         if url.clone().is_some() {
             self.raid_helper_url = url.clone().unwrap();
             self.ignore_url_question = true;
@@ -119,7 +119,7 @@ impl RaidCheckQuestions {
                             }).clicked() {
                                 self.state = QuestionState::AskRaidHelperURL;
                                 self.raid_id = if self.raid_id == -1 {
-                                    expansion_config.latest_expansion.as_ref().unwrap().raids.iter().last().unwrap().id
+                                    expansion_config.latest_expansion.as_ref().unwrap().seasons.last().unwrap().raids.iter().last().unwrap().id
                                 } else {
                                     self.raid_id
                                 };
@@ -137,7 +137,7 @@ impl RaidCheckQuestions {
             QuestionState::AskSavedBosses => {
 
                 self.raid_id = if self.raid_id == -1 {
-                    expansion_config.latest_expansion.as_ref().unwrap().raids.iter().last().unwrap().id
+                    expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
                 } else {
                     self.raid_id
                 };
@@ -147,12 +147,22 @@ impl RaidCheckQuestions {
                     .resizable(false)
                     .show(ctx, |ui| {
                         
+                        if self.raid_id == -1 || expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).is_none() {
+                            self.raid_id = expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id;
+                        }
+
                         egui::ComboBox::from_label("Selected raid")
-                            .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().raids.get(self.raid_id as usize).unwrap().identifier))
+                            .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).unwrap_or(&ExpansionRaid::default()).identifier))
                             .show_ui(ui, |ui| {
-                                for raid in expansion_config.latest_expansion.as_ref().unwrap().raids.iter() {
-                                    ui.selectable_value(&mut self.raid_id, raid.id, raid.identifier.clone());
+                                for seasons in expansion_config.latest_expansion.as_ref().unwrap().seasons.iter() {
+                                    for raid in seasons.raids.iter() {
+                                        ui.selectable_value(&mut self.raid_id, raid.id, raid.identifier.clone());
+                                    }
+                                    if seasons.seasonal_identifier == expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_identifier {
+                                        break;
+                                    }
                                 }
+                                
                             });
 
                         if self.prev_raid_id != self.raid_id {
@@ -161,9 +171,9 @@ impl RaidCheckQuestions {
                         }
 
                         egui::ComboBox::from_label("Selected difficulty")
-                            .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().raids.get(self.raid_id as usize).unwrap().difficulty.get(self.difficulty_id as usize).unwrap().difficulty_name))
+                            .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.get(self.difficulty_id as usize).unwrap().difficulty_name))
                             .show_ui(ui, |ui| {
-                                for difficulty in expansion_config.latest_expansion.as_ref().unwrap().raids.get(self.raid_id as usize).unwrap().difficulty.iter() {
+                                for difficulty in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.iter() {
                                     ui.selectable_value(&mut self.difficulty_id, difficulty.id, difficulty.difficulty_name.clone());
                                 }
                             });
@@ -173,7 +183,7 @@ impl RaidCheckQuestions {
                                 ui.label("Enable all bosses for this raid.");
                             }).clicked() {
                                 self.saved_bosses.clear();
-                                for i in 0..expansion_config.latest_expansion.as_ref().unwrap().raids.iter().find(|x| x.id == self.raid_id).unwrap().boss_names.len() {
+                                for i in 0..expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.len() {
                                     self.saved_bosses.push(i as i32);
                                 }
                             };
@@ -186,7 +196,7 @@ impl RaidCheckQuestions {
                         });
                         
                         let mut bid = 0;
-                        for boss in expansion_config.latest_expansion.as_ref().unwrap().raids.iter().find(|x| x.id == self.raid_id).unwrap().boss_names.iter() {
+                        for boss in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.iter() {
                             let mut tmp = self.saved_bosses.contains(&bid);
                             if ui.checkbox(&mut tmp, boss).changed() {
                                 if tmp {
@@ -218,7 +228,7 @@ impl RaidCheckQuestions {
 
             QuestionState::AskRaidHelperURL => {
                 if self.ignore_url_question && self.raid_helper_url.len() > 0 {
-                    send_it = Some((self.raid_helper_url.clone(), self.ahead_of_the_curve, self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only));
+                    send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only));
                     self.saved_bosses.clear();
                     self.raid_helper_url_error = false;
                     self.state = QuestionState::None;
@@ -246,7 +256,7 @@ impl RaidCheckQuestions {
                                 ui.label("Sign ups on this URL will be checked.");
                             }).clicked() {
                                 if self.player_only == true {
-                                    send_it = Some((self.raid_helper_url.clone(), self.ahead_of_the_curve, self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only));
+                                    send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only));
                                     self.saved_bosses.clear();
                                     self.raid_helper_url_error = false;
                                     self.state = QuestionState::None;
@@ -255,7 +265,7 @@ impl RaidCheckQuestions {
                                     if let Some(url) = check_raidhelper_url(self.raid_helper_url.clone()) {
                                         self.raid_helper_url = url;
                                         
-                                        send_it = Some((self.raid_helper_url.clone(), self.ahead_of_the_curve, self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only));
+                                        send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only));
                                         self.saved_bosses.clear();
                                         self.raid_helper_url_error = false;
                                         self.state = QuestionState::None;
