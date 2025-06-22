@@ -594,6 +594,7 @@ impl ArmoryChecker {
     
         let mut account_aotc = false;
         let re = Regex::new(r#"var\s+characterProfileInitialState\s*=\s*(\{.*?\});"#).unwrap();
+        let mut ret = AOTCStatus::None;
         if let Some(captures) = re.captures(&response) {
             let js_variable = &captures[1];
             let armory_response: ArmoryCharacterAchievementResponse = serde_json::from_str(&js_variable).unwrap();
@@ -607,9 +608,11 @@ impl ArmoryChecker {
                     }
                 }
             }
+        } else {
+            return AOTCStatus::Error;
         }
             
-        let mut ret = AOTCStatus::None;
+       
         if account_aotc {
             ret = AOTCStatus::Account;
             let raid_summary = armory.summary.raids.get(raid_id as usize);

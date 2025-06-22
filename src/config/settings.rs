@@ -179,6 +179,7 @@ impl Default for Settings {
                 PriorityChecks::Unkilled,
                 PriorityChecks::Enchantments,
                 PriorityChecks::SpecialItem,
+                PriorityChecks::BadSocket,
                 PriorityChecks::RaidBuff,
             ],
         }
