@@ -70,7 +70,7 @@ impl EnchantmentSlots {
     // DIRTY!
     pub fn as_array_mut(&mut self) -> [(&mut EnchantmentSlotSetting, &str); 12] {
         [
-            (&mut self.back, "back"),
+            (&mut self.back, "cloak"),
             (&mut self.chest, "chest"),
             (&mut self.foot, "feet"),
             (&mut self.hand, "hand"),
@@ -88,7 +88,7 @@ impl EnchantmentSlots {
     #[allow(dead_code)]
     pub fn as_array(&self) -> [(EnchantmentSlotSetting, &str); 12] {
         [
-            (self.back.clone(), "back"),
+            (self.back.clone(), "cloak"),
             (self.chest.clone(), "chest"),
             (self.foot.clone(), "feet"),
             (self.hand.clone(), "hand"),

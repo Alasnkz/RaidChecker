@@ -163,8 +163,8 @@
           "has_socket": true
         },
         {
-          "slot": "back",
-          "sub_slots": [],
+          "slot": "cloak",
+          "sub_slots": ["back"],
           "enchant_ids": [
             7401,
             7402,
@@ -243,6 +243,10 @@
         },
         {
           "slot": "head",
+          "has_socket": true
+        },
+        {
+          "slot": "neck",
           "has_socket": true
         }
       ],
@@ -411,6 +415,15 @@
                 "Fractillus",
                 "Nexus-King Salhadaar",
                 "Dimensius, the All-Devouring"
+              ]
+            }
+          ],
+          "seasonal_gear": [
+            {
+              "slot": "cloak",
+              "sub_slots": ["back"],
+              "special_item_id": [
+                235499
               ]
             }
           ]

@@ -197,7 +197,7 @@ impl SignUpsUI {
 
         if player.bad_special_item.len() > 0 {
             for gear in player.bad_special_item.iter() {
-                ui.label(format!("\t{}", gear));
+                ui.label(egui::RichText::new(format!("\t{}", gear)).color(egui::Color32::from_rgb(settings.bad_gear_colour.unwrap()[0], settings.bad_gear_colour.unwrap()[1], settings.bad_gear_colour.unwrap()[2])));
             }
         }
 

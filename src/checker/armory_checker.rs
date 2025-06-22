@@ -317,6 +317,7 @@ impl ArmoryChecker {
                         })
                     });
             }
+
             if enchantment_slot.is_some() {
 
                 if (gear.0 == "offhand" && gear.1.inventory_type.gear_type.to_lowercase() == "weapon") || gear.0 != "offhand" {
@@ -440,7 +441,7 @@ impl ArmoryChecker {
         });
 
         if let Some(enchant_options) = enchant_options_opt {
-            
+
             let slot_name = slot.inventory_type.clone().gear_type.to_lowercase();
             if enchant_options.0.require_special_item == true && seasonal_item.is_some() && seasonal_item.unwrap().special_item_id.is_some() {
                 println!("Checking seasonal item for slot: {}", enchants.slot);

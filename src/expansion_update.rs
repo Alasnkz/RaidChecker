@@ -1,5 +1,6 @@
 use std::{fs, io::Write};
 use reqwest::blocking::get;
+use semver::Version;
 
 #[derive(serde::Deserialize)]
 struct MiniJsonData {
@@ -31,7 +32,13 @@ impl ExpansionUpdateChecker {
         };
         let local_checksum = format!("{:x}", md5::compute(&local_data));
 
+        
         if !self.fetch_remote_and_store() {
+            return false;
+        }
+
+        if self.remote_data.is_some() == false || self.remote_data.as_ref().unwrap().len() == 0
+        {
             return false;
         }
 
@@ -40,20 +47,27 @@ impl ExpansionUpdateChecker {
 
         let local_data: MiniJsonData = serde_json::from_slice(&local_data).unwrap();
         let data: MiniJsonData = serde_json::from_slice(&remote_data).unwrap();
-        local_checksum != remote_checksum && data.rhcu_version == RHCU_VERSION && data.modified > local_data.modified
+        let remote_version = Version::parse(&data.rhcu_version).unwrap();
+        let local_version = Version::parse(RHCU_VERSION).unwrap();
+        local_checksum != remote_checksum && remote_version.major == local_version.major && data.modified > local_data.modified
     }
 
     fn fetch_remote_and_store(&mut self) -> bool {
-        let url = "http://localhost:8000/expansions.json";
+        let url = "https://github.com/Alasnkz/RaidChecker/raw/refs/heads/main/expansions.json";
         match get(url) {
-            Ok(response) => match response.bytes() {
-                Ok(bytes) => {
-                    self.remote_data = Some(bytes.to_vec());
-                    true
+            Ok(response) => {
+                if response.status().is_success() || response.status() == 404 {
+                    return false;
                 }
-                Err(_) => false,
+                match response.bytes() {
+                    Ok(bytes) => {
+                        self.remote_data = Some(bytes.to_vec());
+                        true
+                    }
+                    Err(_) => false,
+                }
             },
-            Err(_) => false,
+            _ => false,
         }
     }
 
@@ -67,10 +81,9 @@ impl ExpansionUpdateChecker {
         Ok(())
     }
 
-    fn need_app_update(owner: &str, repo: &str) -> bool {
+    pub fn need_app_update() -> bool {
         let url = format!(
-            "https://api.github.com/repos/{}/{}/releases/latest",
-            owner, repo
+            "https://api.github.com/repos/Alasnkz/RaidChecker/releases/latest",
         );
     
         let client = reqwest::blocking::Client::new();
@@ -86,7 +99,7 @@ impl ExpansionUpdateChecker {
     
         let data: Option<GitHubRelease> = response.text().ok().and_then(|text| serde_json::from_str(&text).ok());
         if data.is_some() {
-            return data.unwrap().tag_name != RHCU_VERSION;
+            return Version::parse(&data.unwrap().tag_name).unwrap() > Version::parse(RHCU_VERSION).unwrap();
         }
         false
     }

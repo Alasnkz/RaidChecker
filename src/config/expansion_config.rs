@@ -116,7 +116,7 @@ impl Default for Expansions {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct ExpansionsConfig {
-    pub rhcu_version: i32,
+    pub rhcu_version: String,
     pub modified: u64,
     pub latest_expansion_identifier: String,
     #[serde(default="default_vec")]
@@ -128,7 +128,7 @@ pub struct ExpansionsConfig {
 impl Default for ExpansionsConfig {
     fn default() -> Self {
         Self {
-            rhcu_version: 1,
+            rhcu_version: "0.0.0".to_owned(),
             modified: 0,
             latest_expansion_identifier: "TWW".to_owned(),
             agnostic_gear_enchants: Vec::new(),

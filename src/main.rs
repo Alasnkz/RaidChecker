@@ -13,7 +13,7 @@ pub mod expansion_update;
 pub mod settings_ui;
 use config::last_raid::LastRaid;
 
-use crate::config::expansion_config::{ExpansionSeasons, Expansions};
+use crate::{config::expansion_config::{ExpansionSeasons, Expansions}, expansion_update::ExpansionUpdateChecker};
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions::default();
@@ -40,6 +40,7 @@ struct RaidHelperCheckerApp {
     win_title: String,
     win_title_change: bool,
 
+    ask_json_update: bool,
     ask_update: bool,
 }
 
@@ -48,7 +49,7 @@ impl Default for RaidHelperCheckerApp {
         let mut app = Self {
             version: 1,
             draw_settings: false,
-            expansion_update_checker: expansion_update::ExpansionUpdateChecker::new(),
+            expansion_update_checker: ExpansionUpdateChecker::new(),
             settings_ui: settings_ui::SettingsUi::new(),
             settings: Settings::read_or_create("config.json").unwrap(),
             expansions: ExpansionsConfig::read_or_create("expansions.json").unwrap(),
@@ -62,43 +63,18 @@ impl Default for RaidHelperCheckerApp {
             draw_player_check: false,
             win_title: "Raid Helper Checker".to_string(),
             win_title_change: false,
+            ask_json_update: false,
             ask_update: false,
         };
-        app.expansions.latest_expansion = Some(app.expansions.expansions.iter().find(|x| x.identifier == app.expansions.latest_expansion_identifier).unwrap_or(&Expansions::default()).clone());
-
-        let mut season_ts_start = 0;
-        let mut season_id = String::new();
-        for season in app.expansions.latest_expansion.as_ref().unwrap().seasons.iter() {
-            if season.season_start >= season_ts_start {
-                if season.season_start != 0 {
-                    let season_start: DateTime<Utc> = Utc.timestamp_opt(season.season_start, 0).unwrap();
-                    let now: DateTime<Utc> = Utc::now();
-                    if season_start <= now {
-                        season_id = season.seasonal_identifier.clone();
-                        season_ts_start = season.season_start;
-                    } else {
-                        println!("{} {} has not started yet, ignoring. Will activate on {}", app.expansions.latest_expansion_identifier, season.seasonal_identifier, season_start.format("%A, %B %d %Y").to_string());
-                    }
-                } else {
-                    season_id = season.seasonal_identifier.clone();
-                    season_ts_start = season.season_start;
-                }
-            }
-        }
-        app.expansions.latest_expansion.as_mut().unwrap().latest_season = app.expansions.latest_expansion.as_ref().unwrap().seasons.iter().find(|x| x.seasonal_identifier == season_id).cloned();
-        
-        app.win_title = format!("Raid Helper Checker ({} {})", app.expansions.latest_expansion.as_ref().unwrap().identifier, app.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap_or(&ExpansionSeasons::default()).seasonal_identifier);
-        app.win_title_change = true;
-        app.settings.raid_id = if app.settings.raid_id == -1 {
-            app.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
-        } else {
-            app.settings.raid_id
-        };
-
+        app.reload_data();
         app.raid_sheet.init_from_last_raid(&app.last_raid);
 
-        if app.expansion_update_checker.need_expansion_json_update() {
+        if ExpansionUpdateChecker::need_app_update() {
             app.ask_update = true;
+        }
+
+        if app.expansion_update_checker.need_expansion_json_update() {
+            app.ask_json_update = true;
         }
 
         app
@@ -139,6 +115,7 @@ impl RaidHelperCheckerApp{
         };
     }
 }
+
 impl eframe::App for RaidHelperCheckerApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         if self.win_title_change {
@@ -146,23 +123,44 @@ impl eframe::App for RaidHelperCheckerApp {
             self.win_title_change = false;
         }
 
-        if self.ask_update{
+        if self.ask_update {
+            Window::new("Update available")
+                .show(ctx, |ui| {
+                    ui.label("An update to raid helper checker is available. Clicking Download will bring you to the latest release in your browser.");
+                    ui.horizontal(|ui| {
+                        if ui.button("Download").clicked() {
+                            ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl {
+                                url: "https://github.com/Alasnkz/RaidChecker/releases/latest".to_string(),
+                                new_tab: true,
+                            }));
+    
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        } else if ui.button("Cancel").clicked() {
+                            self.ask_update = false;
+                        }
+                    });
+                    
+                });
+        }
+        else if self.ask_json_update{
             Window::new("Update available")
                 .show(ctx, |ui| {
                     ui.label("An update to the expansion data is available.");
-                    if ui.button("Download").clicked() {
-                        if let Err(e) = self.expansion_update_checker.download_expansions_json() {
-                            eprintln!("Failed to download expansions.json: {}", e);
-                        } else {
-                            self.reload_data();
-                            self.ask_update = false;
+                    ui.horizontal(|ui| {
+                        if ui.button("Download").clicked() {
+                            if let Err(e) = self.expansion_update_checker.download_expansions_json() {
+                                eprintln!("Failed to download expansions.json: {}", e);
+                            } else {
+                                self.reload_data();
+                                self.ask_json_update = false;
+                            }
                         }
-                    }
-                    if ui.button("Cancel").clicked() {
-                        self.ask_update = false;
-                    }
+                        if ui.button("Cancel").clicked() {
+                            self.ask_json_update = false;
+                        }
+                    });
                 });
-        }
+        } 
         else {
             TopBottomPanel::top("top_panel").show(ctx, |ui| {
                 ui.horizontal(|ui| {
