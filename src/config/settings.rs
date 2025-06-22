@@ -23,6 +23,7 @@ pub enum PriorityChecks {
     RaidBuff = 3,
     Unkilled = 4,
     SpecialItem = 5,
+    BadSocket = 6,
 }
 
 impl PriorityChecks {
@@ -30,10 +31,11 @@ impl PriorityChecks {
         match self {
             PriorityChecks::SavedKills => "Saved Kills",
             PriorityChecks::Ilvl => "Bad Item Level",
-            PriorityChecks::Enchantments => "Enchantment issue",
+            PriorityChecks::Enchantments => "Gear enchantment issue",
             PriorityChecks::RaidBuff => "Raid Buff missing",
-            PriorityChecks::Unkilled => "Unkilled Bosses",
-            PriorityChecks::SpecialItem => "Special Item",
+            PriorityChecks::Unkilled => "Bosses not killed",
+            PriorityChecks::SpecialItem => "Missing Special Item",
+            PriorityChecks::BadSocket => "Sockets Missing",
         }
     }
 }
@@ -135,6 +137,8 @@ pub struct Settings {
     pub saved_colour: Option<[u8; 4]>,
     pub unkilled_colour: Option<[u8; 4]>,
     pub bad_gear_colour: Option<[u8; 4]>,
+    pub bad_socket_colour: Option<[u8; 4]>,
+    pub bad_special_item_colour: Option<[u8; 4]>,
     pub buff_colour: Option<[u8; 4]>,
     #[serde(default = "default_check_priority")]
     pub check_priority: Vec<PriorityChecks>,
@@ -147,8 +151,8 @@ fn default_check_priority() -> Vec<PriorityChecks> {
         PriorityChecks::Unkilled,
         PriorityChecks::Enchantments,
         PriorityChecks::SpecialItem,
+        PriorityChecks::BadSocket,
         PriorityChecks::RaidBuff,
-        
     ]
 }
 
@@ -166,6 +170,8 @@ impl Default for Settings {
             saved_colour: Some([0xFF, 0x0, 0x0, 0xFF]),
             unkilled_colour: Some([0xFF, 0xFF, 0x0, 0xFF]),
             bad_gear_colour: Some([0x8B, 0x0, 0x0, 0xFF]),
+            bad_socket_colour: Some([0x8B, 0x0, 0x0, 0xFF]),
+            bad_special_item_colour: Some([0x8B, 0x0, 0x0, 0xFF]),
             buff_colour: Some([0xFF, 0xA5, 0x0, 0xFF]),
             check_priority: vec![
                 PriorityChecks::SavedKills,
@@ -224,6 +230,22 @@ impl Settings {
 
             if settings.buff_colour == None {
                 settings.buff_colour = Some([0xFF, 0xA5, 0x0, 0xFF]);
+            }
+
+            if settings.bad_socket_colour == None {
+                settings.bad_socket_colour = Some([0x8B, 0x0, 0x0, 0xFF]);
+            }
+
+            if settings.bad_special_item_colour == None {
+                settings.bad_special_item_colour = Some([0x8B, 0x0, 0x0, 0xFF]);
+            }
+
+            if settings.check_priority.iter().find(|x| **x == PriorityChecks::BadSocket).is_none() {
+                settings.check_priority.push(PriorityChecks::BadSocket);
+            }
+
+            if settings.check_priority.iter().find(|x: &&PriorityChecks| **x == PriorityChecks::SpecialItem).is_none() {
+                settings.check_priority.push(PriorityChecks::SpecialItem);
             }
             Ok(settings)
         } else {

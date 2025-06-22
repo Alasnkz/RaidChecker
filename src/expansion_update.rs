@@ -85,7 +85,7 @@ impl ExpansionUpdateChecker {
         let url = format!(
             "https://api.github.com/repos/Alasnkz/RaidChecker/releases/latest",
         );
-    
+
         let client = reqwest::blocking::Client::new();
         let response = client
             .get(&url)

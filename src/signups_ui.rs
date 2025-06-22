@@ -105,15 +105,22 @@ impl SignUpsUI {
                 },
 
                 PriorityChecks::Enchantments => {
-                    if player.bad_gear.len() > 0 {
+                    if player.bad_gear.len() > 0 || (player.num_embelishments != -1 && player.num_embelishments < settings.embelishments) {
                         let bad_gear_colour = settings.bad_gear_colour.unwrap();
                         return egui::Color32::from_rgb(bad_gear_colour[0], bad_gear_colour[1], bad_gear_colour[2]);
                     }
                 },
 
+                PriorityChecks::BadSocket => {
+                    if player.bad_socket.len() > 0 {
+                        let bad_socket_colour = settings.bad_socket_colour.unwrap();
+                        return egui::Color32::from_rgb(bad_socket_colour[0], bad_socket_colour[1], bad_socket_colour[2]);
+                    }
+                }
+
                 PriorityChecks::SpecialItem => {
-                    if player.bad_gear.len() > 0 {
-                        let bad_gear_colour = settings.bad_gear_colour.unwrap();
+                    if player.bad_special_item.len() > 0 {
+                        let bad_gear_colour = settings.bad_special_item_colour.unwrap();
                         return egui::Color32::from_rgb(bad_gear_colour[0], bad_gear_colour[1], bad_gear_colour[2]);
                     }
                 },
@@ -196,8 +203,9 @@ impl SignUpsUI {
         }
 
         if player.bad_special_item.len() > 0 {
+            let special_item_colour = settings.bad_special_item_colour.unwrap();
             for gear in player.bad_special_item.iter() {
-                ui.label(egui::RichText::new(format!("\t{}", gear)).color(egui::Color32::from_rgb(settings.bad_gear_colour.unwrap()[0], settings.bad_gear_colour.unwrap()[1], settings.bad_gear_colour.unwrap()[2])));
+                ui.label(egui::RichText::new(format!("\t{}", gear)).color(egui::Color32::from_rgb(special_item_colour[0], special_item_colour[1], special_item_colour[2])));
             }
         }
 

@@ -1,0 +1,96 @@
+name: Rust Build and Package
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build_and_package:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-pc-windows-gnu
+        config: [release, debug]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Install MinGW-w64 toolchain (Win)
+        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-pc-windows-gnu'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gcc-mingw-w64-x86-64
+            
+      
+      - name: Build (Win)
+        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-pc-windows-gnu'
+        run: |
+          if [ "${{ matrix.config }}" == "release" ]; then
+            cargo build --target ${{ matrix.target }} --release
+          else
+            cargo build --target ${{ matrix.target }}
+          fi
+
+      - name: Build (Linux)
+        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          if [ "${{ matrix.config }}" == "release" ]; then
+            cargo build --release
+          else
+            cargo build
+          fi
+
+      - name: Package Linux
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          echo "Packaging Linux build..."
+          OUTPUT_ZIP="RaidChecker.zip"
+
+          TEMP_DIR="./package_contents"
+          mkdir -p "$TEMP_DIR"
+
+          cp ./realms.json "$TEMP_DIR/"
+          cp ./expansions.json "$TEMP_DIR/"
+
+          ls target/${{ matrix.config }}
+          cp ./target/${{ matrix.config }}/RaidChecker "$TEMP_DIR/"
+
+      - name: Package Windows
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        shell: bash
+        run: |
+          OUTPUT_ZIP="RaidChecker-${{ matrix.config }}-windows.zip"
+          TEMP_DIR="./package_contents"
+
+          if [ -d "$TEMP_DIR" ]; then rm -rf "$TEMP_DIR"; fi
+          mkdir -p "$TEMP_DIR"
+
+          cp ./realms.json "$TEMP_DIR/"
+          cp ./expansions.json "$TEMP_DIR/"
+
+          cp target/${{ matrix.target }}/${{ matrix.config }}/RaidChecker.exe "$TEMP_DIR/"
+
+          echo "Contents of $TEMP_DIR before zipping:"
+          ls -R "$TEMP_DIR"
+          
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: RaidChecker-${{ matrix.target }}-${{ matrix.config }}
+          path: |
+            package_contents/*

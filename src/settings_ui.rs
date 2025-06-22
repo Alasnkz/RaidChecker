@@ -310,7 +310,7 @@ impl SettingsUi {
                 });
                 
                 ui.horizontal(|ui| {
-                    ui.label("Ilvl colour");
+                    ui.label("Bad item level colour");
                     let s_ilvl_colour = settings.ilvl_colour.unwrap_or([255, 0, 0, 255]);
                     let mut ilvl_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_ilvl_colour[0] as f32 / 255.0,
@@ -330,7 +330,7 @@ impl SettingsUi {
                 });
 
                 ui.horizontal(|ui| {
-                    ui.label("Saved colour");
+                    ui.label("Saved kills colour");
                     let s_saved_colour = settings.saved_colour.unwrap_or([255, 0, 0, 255]);
                     let mut saved_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_saved_colour[0] as f32 / 255.0,
@@ -350,7 +350,7 @@ impl SettingsUi {
                 });
 
                 ui.horizontal(|ui| {
-                    ui.label("Unkilled colour");
+                    ui.label("Unkilled bosses colour");
                     let s_unkilled_colour = settings.unkilled_colour.unwrap_or([255, 0, 0, 255]);
                     let mut unkilled_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_unkilled_colour[0] as f32 / 255.0,
@@ -409,6 +409,47 @@ impl SettingsUi {
                     }
                 });
                 
+                ui.horizontal(|ui| {
+                    ui.label("Missing socket colour");
+                    let s_buff_colour = settings.bad_socket_colour.unwrap_or([255, 0, 0, 255]);
+                    let mut buff_colour = egui::Rgba::from_rgba_unmultiplied(
+                        s_buff_colour[0] as f32 / 255.0,
+                        s_buff_colour[1] as f32 / 255.0,
+                        s_buff_colour[2] as f32 / 255.0,
+                        1.0,
+                    );
+                
+                    if egui::color_picker::color_edit_button_rgba(ui, &mut buff_colour, egui::color_picker::Alpha::Opaque).changed() {
+                        settings.bad_socket_colour = Some([
+                            (buff_colour[0] * 255.0).round() as u8,
+                            (buff_colour[1] * 255.0).round() as u8,
+                            (buff_colour[2] * 255.0).round() as u8,
+                            255,
+                        ]);
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Missing special item colour");
+                    let s_buff_colour = settings.bad_special_item_colour.unwrap_or([255, 0, 0, 255]);
+                    let mut buff_colour = egui::Rgba::from_rgba_unmultiplied(
+                        s_buff_colour[0] as f32 / 255.0,
+                        s_buff_colour[1] as f32 / 255.0,
+                        s_buff_colour[2] as f32 / 255.0,
+                        1.0,
+                    );
+                
+                    if egui::color_picker::color_edit_button_rgba(ui, &mut buff_colour, egui::color_picker::Alpha::Opaque).changed() {
+                        settings.bad_special_item_colour = Some([
+                            (buff_colour[0] * 255.0).round() as u8,
+                            (buff_colour[1] * 255.0).round() as u8,
+                            (buff_colour[2] * 255.0).round() as u8,
+                            255,
+                        ]);
+                    }
+                });
+
+
                 ui.horizontal(|ui| {
                     if ui.button("Close").clicked() {
                         close = true;

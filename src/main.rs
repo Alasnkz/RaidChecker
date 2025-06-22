@@ -21,7 +21,6 @@ fn main() -> Result<(), eframe::Error> {
 }
 
 struct RaidHelperCheckerApp {
-    version: i32,
     settings_ui: settings_ui::SettingsUi,
     draw_settings: bool,
     expansion_update_checker: expansion_update::ExpansionUpdateChecker,
@@ -47,7 +46,6 @@ struct RaidHelperCheckerApp {
 impl Default for RaidHelperCheckerApp {
     fn default() -> Self {
         let mut app = Self {
-            version: 1,
             draw_settings: false,
             expansion_update_checker: ExpansionUpdateChecker::new(),
             settings_ui: settings_ui::SettingsUi::new(),
