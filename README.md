@@ -11,21 +11,21 @@ Once you open the program, you will be greeted by some buttons (or an update not
 Settings is your main place to set the generic requirements to check against.
 
 **You have "Item Requirements"**
-⠀⠀⠀⠀- You get the ability to set things such as the "head" slot required to be enchanted (or have a greater enchant).
-⠀⠀⠀⠀- You also have the ability to set the amount of sockets you require on each slot, i.e. 2 slots required on the neck.
-⠀⠀⠀⠀- Of course, with WoW now we also have "special items" as I like to call them, these can be the D.I.S.C. belt and other sorts. You can check to see if a slot is filled with one. 
-⠀⠀⠀⠀⠀⠀⠀⠀**VERY IMPORTANT: It will only check the current SEASON's special item. It will not check for the ring, and it won't check for D.I.S.C. in S3**.
+    - You get the ability to set things such as the "head" slot required to be enchanted (or have a greater enchant).
+    - You also have the ability to set the amount of sockets you require on each slot, i.e. 2 slots required on the neck.
+    - Of course, with WoW now we also have "special items" as I like to call them, these can be the D.I.S.C. belt and other sorts. You can check to see if a slot is filled with one. 
+        **VERY IMPORTANT: It will only check the current SEASON's special item. It will not check for the ring, and it won't check for D.I.S.C. in S3**.
 
 **You have "Raid Requirements"**
-⠀⠀⠀⠀- This is your place to set kill requirements, i.e. I require 8/8 Heroic kills in my Mythic raid.
-⠀⠀⠀⠀- This is also where the average item level requirement is set.
+    - This is your place to set kill requirements, i.e. I require 8/8 Heroic kills in my Mythic raid.
+    - This is also where the average item level requirement is set.
 
 **You have "check priority"**
-⠀⠀⠀⠀- This is related to the next setting also, but this is what should take precedence over other colours you may set in the character list.
-⠀⠀⠀⠀- People being saved is your main concern? Put it at the top and then you will be able to quickly glance at the list of characters and they'll be colour coded to the saved colour.
+    - This is related to the next setting also, but this is what should take precedence over other colours you may set in the character list.
+    - People being saved is your main concern? Put it at the top and then you will be able to quickly glance at the list of characters and they'll be colour coded to the saved colour.
 
 **You have "colour settings"**
-⠀⠀⠀⠀- As stated previously, this is where you set specific colours for things such as being saved to bosses, not matching the ilvl requirement, missing enchants, missing a special item, and so on.
+    - As stated previously, this is where you set specific colours for things such as being saved to bosses, not matching the ilvl requirement, missing enchants, missing a special item, and so on.
 
 ## Check single character
 You will get a text box, input the character (realm isn't needed but you can do it with Name-Realm, it will search the armory and allow you to click the character you want).
@@ -41,8 +41,8 @@ Once you have checked the raid, you will see a list of the characters on the lef
 
 ## Download
 Raid Checker features two different update mechanics:
-⠀⠀⠀⠀- Application update this will inform you that a Raid Checker update is avaiable **it will not download it for you**, if you click on download it'll bring you to the releases page.
-⠀⠀⠀⠀- Expansion data update this will inform you that a new version of the expansion data is avaiable, if you click download it **will download** the data and replace the current one.
+    - Application update this will inform you that a Raid Checker update is avaiable **it will not download it for you**, if you click on download it'll bring you to the releases page.
+    - Expansion data update this will inform you that a new version of the expansion data is avaiable, if you click download it **will download** the data and replace the current one.
     
 It is **open source** please feel free to contribute and fix my bad code or something.
 
@@ -51,5 +51,3 @@ It is **open source** please feel free to contribute and fix my bad code or some
 FAQ:
    Q: What is "expansion data"?
    A: Expansion data is all the enchant ids, raid ids, raid bosses, seasonal data such as special item ids, enchant ids and all sorts. Ideally, if there's an expansion data update you should probably get it.
-   
-**See below for any screenshots.**
