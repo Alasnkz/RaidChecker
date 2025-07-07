@@ -96,9 +96,25 @@ jobs:
           echo "Contents of $TEMP_DIR before zipping:"
           ls -R "$TEMP_DIR"
           
+      - name: Setup Names for Artifacts
+        run: |
+          if [ "${{ matrix.target }}" == "x86_64-unknown-linux-gnu" ]; then
+            if [ "${{ matrix.config }}" == "release" ]; then
+              echo "artifact_name=2_RaidChecker-linux-${{ matrix.config }}" >> $GITHUB_ENV
+            else
+              echo "artifact_name=4_RaidChecker-linux-${{ matrix.config }}" >> $GITHUB_ENV
+            fi
+          else
+            if [ "${{ matrix.config }}" == "release" ]; then
+              echo "artifact_name=1_RaidChecker-windows-${{ matrix.config }}" >> $GITHUB_ENV
+            else
+              echo "artifact_name=3_+RaidChecker-windows-${{ matrix.config }}" >> $GITHUB_ENV
+            fi
+          fi
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: RaidChecker-${{ matrix.target }}-${{ matrix.config }}
+          name: ${{ env.artifact_name }}
           path: |
             package_contents/*

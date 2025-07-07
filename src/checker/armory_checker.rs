@@ -210,7 +210,7 @@ impl ArmoryChecker {
         let client = Client::new();
         let response = client
             .get(name_url)
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
             .send();
 
         if response.is_err() {
@@ -573,6 +573,7 @@ impl ArmoryChecker {
         merged.into_iter().map(|(_, line)| line).collect()
     }
 
+    // TODO: This breaks on windows release builds??
     pub fn check_aotc(_url: String, armory: &ArmoryCharacterResponse, expansions: &config::expansion_config::ExpansionsConfig, raid_id: i32) -> AOTCStatus {
         let binding = expansions.latest_expansion.clone().unwrap();
         let raid = binding.find_raid_by_id(raid_id);
@@ -580,6 +581,9 @@ impl ArmoryChecker {
             return AOTCStatus::Error;
         }
         let achievement_id = raid.unwrap().aotc_achievement_id;
+        if achievement_id == -1 {
+            return AOTCStatus::None;
+        }
 
         let client = Client::new();
     
@@ -588,7 +592,7 @@ impl ArmoryChecker {
 
         let response = client
             .get(url)
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
             .send().unwrap()
             .text().unwrap();
     
@@ -647,26 +651,26 @@ impl ArmoryChecker {
 
         let response = client
             .get(url)
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
             .send().unwrap()
             .text().unwrap();
 
         let re = Regex::new(r#"var\s+characterProfileInitialState\s*=\s*(\{.*?\});"#).unwrap();
 
-        let mut data: Option<ReputationCategory> = None;
-        let reputation = raid.unwrap().reputation.clone();
+        let mut o_data: Option<ReputationCategory> = None;
+        let reputation = raid.unwrap().reputation.clone().unwrap();
         if let Some(captures) = re.captures(&response) {
             let js_variable = &captures[1];
             let armory_response: ArmoryCharacterReputationResponse = serde_json::from_str(&js_variable).unwrap();
             for category in armory_response.reputations.reputations {
                 if category.id == binding.reputation_slug {
                     for expansion_rep in category.reputations {
-                        if expansion_rep.id == reputation.clone().unwrap().raid_rep_slug {
-                            data = Some(expansion_rep.clone());
+                        if expansion_rep.id == reputation.raid_rep_slug {
+                            o_data = Some(expansion_rep.clone());
                         } else if expansion_rep.reputations.len() > 0 {
                             for sub_rep in expansion_rep.reputations {
-                                if sub_rep.id == reputation.clone().unwrap().raid_rep_slug {
-                                    data = Some(sub_rep.clone());
+                                if sub_rep.id == reputation.raid_rep_slug {
+                                    o_data = Some(sub_rep.clone());
                                 }
                             }
                         }
@@ -675,17 +679,18 @@ impl ArmoryChecker {
             }
         }
     
-        if data.is_some() {
-            let time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(reputation.clone().unwrap().renown_start, 0).unwrap(), Utc);
+        if o_data.is_some() {
+            let time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(reputation.renown_start, 0).unwrap(), Utc);
             let now = Utc::now();
             let duration = now - time;
             let weeks = duration.num_weeks() + 1;
             let max_renown = weeks + 1; // Can gain 2 renown on the first week.
 
-            let buff_renowns = reputation.clone().unwrap().raid_buff_renowns;
-            let renown = data.clone().unwrap().standing.unwrap().split(" ").last().unwrap().parse::<i32>().unwrap();
-            let renown_amount = data.clone().unwrap().value.unwrap_or(0) as i32;
-            let weekly = reputation.clone().unwrap().max_renown_value_weekly + renown_amount; // Add our current renown amount to the weekly cap.
+            let data = o_data.unwrap();
+            let buff_renowns = reputation.raid_buff_renowns;
+            let renown = data.standing.unwrap().split(" ").last().unwrap().parse::<i32>().unwrap();
+            let renown_amount = data.value.unwrap_or(0) as i32;
+            let weekly = reputation.max_renown_value_weekly + renown_amount; // Add our current renown amount to the weekly cap.
             let missing_buff_levels: Vec<i32> = buff_renowns
                 .iter()
                 .filter(|&&lvl| lvl <= max_renown as i32 && lvl > renown)
@@ -696,8 +701,7 @@ impl ArmoryChecker {
                 // Figure out if we can get the buff with 5k backup
                 let first_renown = missing_buff_levels.first().unwrap().clone();
                 let diff = first_renown - renown;
-                let rep_data = data.clone().unwrap();
-                let possible = ((diff * rep_data.max_value.unwrap() as i32) as f32 / weekly as f32) < 1.0 as f32;
+                let possible = ((diff * data.max_value.unwrap() as i32) as f32 / weekly as f32) < 1.0 as f32;
                 return (missing_buff_levels.len() as i32, possible);
             }
         }
