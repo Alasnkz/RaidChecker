@@ -19,7 +19,6 @@ pub struct RaidCheckQuestions {
     pub(crate) saved_bosses: Vec<i32>,
     raid_helper_url: String,
     raid_helper_url_error: bool,
-    ahead_of_the_curve: bool,
     pub(crate) ignore_url_question: bool,
     pub(crate) previous_difficulty: bool,
     pub(crate) player_only: bool
@@ -80,7 +79,6 @@ impl Default for RaidCheckQuestions {
             saved_bosses: Vec::new(),
             raid_helper_url: String::default(),
             raid_helper_url_error: false,
-            ahead_of_the_curve: false,
             ignore_url_question: false,
             previous_difficulty: true,
             player_only: false
@@ -234,7 +232,7 @@ impl RaidCheckQuestions {
                     self.state = QuestionState::None;
                 }
                 else {
-                    egui::Window::new("Raid Helper Checker")
+                    egui::Window::new("Raid Checker")
                         .collapsible(false)
                         .resizable(false)
                         .show(ctx, |ui| {

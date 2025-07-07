@@ -17,7 +17,7 @@ use crate::{config::expansion_config::{ExpansionSeasons, Expansions}, expansion_
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions::default();
-    eframe::run_native("Raid Helper Checker", options, Box::new(|_| Ok(Box::<RaidHelperCheckerApp>::default())))
+    eframe::run_native("Raid Checker", options, Box::new(|_| Ok(Box::<RaidHelperCheckerApp>::default())))
 }
 
 struct RaidHelperCheckerApp {
@@ -59,7 +59,7 @@ impl Default for RaidHelperCheckerApp {
             clear_target: false,
             checked_player: None,
             draw_player_check: false,
-            win_title: "Raid Helper Checker".to_string(),
+            win_title: "Raid Checker".to_string(),
             win_title_change: false,
             ask_json_update: false,
             ask_update: false,
@@ -104,7 +104,7 @@ impl RaidHelperCheckerApp{
             }
         }
         self.expansions.latest_expansion.as_mut().unwrap().latest_season = self.expansions.latest_expansion.as_ref().unwrap().seasons.iter().find(|x| x.seasonal_identifier == season_id).cloned();
-        self.win_title = format!("Raid Helper Checker ({} {})", self.expansions.latest_expansion.as_ref().unwrap().identifier, self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap_or(&ExpansionSeasons::default()).seasonal_identifier);
+        self.win_title = format!("Raid Checker ({} {})", self.expansions.latest_expansion.as_ref().unwrap().identifier, self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap_or(&ExpansionSeasons::default()).seasonal_identifier);
         self.win_title_change = true;
         self.settings.raid_id = if self.settings.raid_id == -1 {
             self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
@@ -124,7 +124,7 @@ impl eframe::App for RaidHelperCheckerApp {
         if self.ask_update {
             Window::new("Update available")
                 .show(ctx, |ui| {
-                    ui.label("An update to raid helper checker is available. Clicking Download will bring you to the latest release in your browser.");
+                    ui.label("An update to Raid Checker is available. Clicking Download will bring you to the latest release in your browser.");
                     ui.horizontal(|ui| {
                         if ui.button("Download").clicked() {
                             ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl {
@@ -141,7 +141,7 @@ impl eframe::App for RaidHelperCheckerApp {
                 });
         }
         else if self.ask_json_update{
-            Window::new("Update available")
+            Window::new("Expansion data update available")
                 .show(ctx, |ui| {
                     ui.label("An update to the expansion data is available.");
                     ui.horizontal(|ui| {

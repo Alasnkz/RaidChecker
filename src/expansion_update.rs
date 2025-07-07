@@ -56,7 +56,7 @@ impl ExpansionUpdateChecker {
         let url = "https://github.com/Alasnkz/RaidChecker/raw/refs/heads/main/expansions.json";
         match get(url) {
             Ok(response) => {
-                if response.status().is_success() || response.status() == 404 {
+                if !response.status().is_success() || response.status() == 404 {
                     return false;
                 }
                 match response.bytes() {
