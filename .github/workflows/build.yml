@@ -108,7 +108,7 @@ jobs:
             if [ "${{ matrix.config }}" == "release" ]; then
               echo "artifact_name=1_RaidChecker-windows-${{ matrix.config }}" >> $GITHUB_ENV
             else
-              echo "artifact_name=3_+RaidChecker-windows-${{ matrix.config }}" >> $GITHUB_ENV
+              echo "artifact_name=3_RaidChecker-windows-${{ matrix.config }}" >> $GITHUB_ENV
             fi
           fi
 
