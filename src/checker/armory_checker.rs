@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}};
 
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDateTime, TimeZone, Utc, Weekday};
 use regex::Regex;
@@ -595,10 +595,7 @@ impl ArmoryChecker {
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
             .send().unwrap()
             .text().unwrap();
-    
-        let mut account_aotc = false;
         let re = Regex::new(r#"var\s+characterProfileInitialState\s*=\s*(\{.*?\});"#).unwrap();
-        let mut ret = AOTCStatus::None;
         if let Some(captures) = re.captures(&response) {
             let js_variable = &captures[1];
             let armory_response: ArmoryCharacterAchievementResponse = serde_json::from_str(&js_variable).unwrap();
@@ -606,8 +603,16 @@ impl ArmoryChecker {
                 if category.1.id == "raids" {
                     for achievement in category.1.achievements {
                         if achievement.id == achievement_id {
-                            account_aotc = true;
-                            break;
+                            let raid_summary = armory.summary.raids.get(raid_id as usize);
+                            if raid_summary.is_some() {
+                                let raid_difficulty = raid_summary.unwrap().difficulties.get(2 as usize);
+                                if raid_difficulty.is_some() {
+                                    if raid_difficulty.unwrap().bosses.last().unwrap().kill_count >= 1 {
+                                        return AOTCStatus::Character;
+                                    }
+                                }
+                            }
+                            return AOTCStatus::Account;
                         }
                     }
                 }
@@ -615,21 +620,7 @@ impl ArmoryChecker {
         } else {
             return AOTCStatus::Error;
         }
-            
-       
-        if account_aotc {
-            ret = AOTCStatus::Account;
-            let raid_summary = armory.summary.raids.get(raid_id as usize);
-            if raid_summary.is_some() {
-                let raid_difficulty = raid_summary.unwrap().difficulties.get(2 as usize);
-                if raid_difficulty.is_some() {
-                    if raid_difficulty.unwrap().bosses.last().unwrap().kill_count >= 1 {
-                        ret = AOTCStatus::Character;
-                   }
-                }
-            }
-        }
-        ret
+        return AOTCStatus::None;
     }
 
     pub fn check_raid_buff(_url: String, expansions: &config::expansion_config::ExpansionsConfig, raid_id: i32) -> (i32, bool) {

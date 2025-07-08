@@ -207,7 +207,7 @@ impl PlayerChecker {
         let (bad_enchant_gear, bad_socket_gear, bad_special_item, embelishments) = ArmoryChecker::check_gear(&data, settings, expansions);
         let ilvl = data.character.average_item_level;
         let saved_bosses = ArmoryChecker::check_saved_bosses(&data, raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty);
-        let aotc_status = ArmoryChecker::check_aotc(url.clone(), &data, expansions, raid_id);
+        let aotc_report = ArmoryChecker::check_aotc(url.clone(), &data, expansions, raid_id);
         let buff_status = ArmoryChecker::check_raid_buff(url.clone(), expansions, raid_id);
 
         Some(PlayerData {
@@ -221,7 +221,7 @@ impl PlayerChecker {
             num_embelishments: embelishments,
             ilvl: ilvl,
             saved_bosses: saved_bosses,
-            aotc_status: aotc_status,
+            aotc_status: aotc_report,
             buff_status: buff_status.0,
             buff_possible: buff_status.1,
             skip_reason: None,
