@@ -1,4 +1,5 @@
 use reqwest::blocking::Client;
+use tracing::info;
 use std::{sync::mpsc::{self, Receiver, Sender}, thread};
 
 use crate::config::{self, last_raid::{LastRaid}};
@@ -105,6 +106,14 @@ pub enum RaidHelperCheckerStatus {
     QuestionStringSkip(String),
     CheckResults(LastRaid),
     PlayerResult(PlayerData),
+    PlayerResultSheet(PlayerData, String)
+}
+
+#[derive(PartialEq, Clone)]
+pub enum PlayerOnlyCheckType {
+    None,
+    Player,
+    PlayerFromSheet(String)
 }
 
 fn should_check_player(player: &Player) -> bool {
@@ -136,7 +145,7 @@ impl RaidSheet {
         }
     }
 
-    pub fn init(&mut self, url: String, is_player_only: bool, settings: config::settings::Settings, expansions: config::expansion_config::ExpansionsConfig, realms: config::realms::RealmJson,
+    pub fn init(&mut self, url: String, is_player_only: PlayerOnlyCheckType, settings: config::settings::Settings, expansions: config::expansion_config::ExpansionsConfig, realms: config::realms::RealmJson,
         raid_id: i32, raid_difficulty: i32, boss_kills: Vec<i32>, check_saved_prev_difficulty: bool, mut last_raid: LastRaid)
     {
         let (uis, thread_reciever) = mpsc::channel();
@@ -145,7 +154,7 @@ impl RaidSheet {
         self.ui_reciever = uir;
         self.state = RaidSheetState::Init;
 
-        if is_player_only == true {
+        if is_player_only != PlayerOnlyCheckType::None {
             thread::spawn(move || {
                 let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("player {}", url.clone())));
                 let mut player = Player::default();
@@ -153,7 +162,11 @@ impl RaidSheet {
 
                 let player_data = PlayerChecker::check_player(&player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, raid_id, raid_difficulty, &boss_kills, check_saved_prev_difficulty, None);
                 if player_data.is_some() {
-                    let _ = thread_sender.send(RaidHelperCheckerStatus::PlayerResult(player_data.unwrap()));
+                    if let PlayerOnlyCheckType::PlayerFromSheet(data) = is_player_only {
+                        let _ = thread_sender.send(RaidHelperCheckerStatus::PlayerResultSheet(player_data.unwrap(), data));                        
+                    } else {
+                        let _ = thread_sender.send(RaidHelperCheckerStatus::PlayerResult(player_data.unwrap()));
+                    }
                 } else {
                     let _ = thread_sender.send(RaidHelperCheckerStatus::Error(format!("Could not find player {:?}", url.clone())));
                 }
@@ -307,6 +320,38 @@ impl RaidSheet {
 
                 RaidHelperCheckerStatus::PlayerResult(player) => {
                     *checked_player = Some(player.clone());
+                    self.state = RaidSheetState::None;
+                }
+
+                RaidHelperCheckerStatus::PlayerResultSheet(mut player, discord) => {
+                    info!("Updating player data from sheet recheck: {}", player.name);
+                    player.discord_id = discord.clone();
+                    let old_player_data = last_raid.players.iter_mut().find(|x| x.discord_id == player.discord_id);
+                    if let Some(old_player) = old_player_data {
+                        player.name = old_player.name.clone();
+                        info!("Found old player data for {}", player.name);
+                        let queued = old_player.queued;
+                        player.queued = queued;
+                        *old_player = player.clone();
+                        if queued {
+                            info!("Updating queued player data for {}", player.name);
+                            
+                            if let Some(index) = self.queued_players.iter().position(|x| x.discord_id == player.discord_id) {
+                                self.queued_players[index] = player;
+                            } else {
+                                self.queued_players.push(player);
+                            }
+                        } else {
+                            info!("Updating active player data for {}", player.name);
+                            if let Some(index) = self.active_players.iter().position(|x| x.discord_id == player.discord_id) {
+                                self.active_players[index] = player;
+                            } else {
+                                self.active_players.push(player);
+                            }
+                        }
+                    }
+                    *just_checked = true;
+                    last_raid.save();
                     self.state = RaidSheetState::None;
                 }
             }

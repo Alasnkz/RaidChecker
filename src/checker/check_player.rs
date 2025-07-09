@@ -3,6 +3,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use regex::Regex;
 use reqwest::blocking::Client;
 use scraper::{Html, Selector};
+use tracing::info;
 
 use crate::config::{self, realms::RealmJson};
 
@@ -11,7 +12,7 @@ use super::{armory_checker::{AOTCStatus, ArmoryChecker}, raid_sheet::{Player, Ra
 pub struct PlayerChecker {}
 
 fn converted_name_correct_realm(ourl: String, realms: &RealmJson) -> String {
-    println!("dbg: {}", ourl);
+    info!("Converting name to correct realm slug: {}", ourl);
     let mut url = ourl.to_lowercase();
     for realm in realms.realms.iter() {
         if url.contains(&realm.name) {
@@ -42,6 +43,16 @@ fn process_name(name: &str) -> Option<(String, String)> {
     } else {
         None
     }
+}
+
+pub fn slug_to_name(slug: &str, realms: &RealmJson) -> Option<String> {
+    for realm in realms.realms.iter() {
+        if slug == realm.slug {
+            info!("Found realm: {} for slug: {}", realm.name, slug);
+            return Some(realm.name.clone());
+        }
+    }
+    None
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -202,14 +213,17 @@ impl PlayerChecker {
             }
         }
 
+        info!("------------------- Checking player {} -------------------", player.name);
         let data = armory_data.unwrap();
         let unkilled_bosses = ArmoryChecker::check_raid_boss_kills(&data, settings);
         let (bad_enchant_gear, bad_socket_gear, bad_special_item, embelishments) = ArmoryChecker::check_gear(&data, settings, expansions);
+        info!("Character has {} ilvl", data.character.average_item_level);
         let ilvl = data.character.average_item_level;
         let saved_bosses = ArmoryChecker::check_saved_bosses(&data, raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty);
         let aotc_report = ArmoryChecker::check_aotc(url.clone(), &data, expansions, raid_id);
+        info!("--- END AOTC CHECK ---");
         let buff_status = ArmoryChecker::check_raid_buff(url.clone(), expansions, raid_id);
-
+        info!("-------------------- Finished checking player {} -------------------", player.name);
         Some(PlayerData {
             discord_id: player.userId.clone(),
             name: player.name.clone(),

@@ -47,6 +47,8 @@ pub struct ExpansionRaid {
     pub boss_names: Vec<String>,
     #[serde(default="default_i32")]
     pub aotc_achievement_id: i32,
+    #[serde(default="default_i32")]
+    pub ce_achievement_id: i32,
     pub reputation: Option<RaidReputation>,
 }
 
@@ -62,6 +64,7 @@ impl Default for ExpansionRaid {
             id: -1,
             boss_names: Vec::new(),
             aotc_achievement_id: -1,
+            ce_achievement_id: -1,
             reputation: None,
         }
     }

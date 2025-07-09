@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 #![allow(rustdoc::missing_crate_level_docs)] // it's an example
 
+use std::{fs::OpenOptions, io::{self, BufWriter}};
+
 use checker::{check_player::PlayerData, raid_questions::{QuestionState, RaidCheckQuestions}, raid_sheet::RaidSheet};
 use chrono::{DateTime, TimeZone, Utc};
 use config::{expansion_config::ExpansionsConfig, settings::Settings};
@@ -12,11 +14,48 @@ pub mod signups_ui;
 pub mod expansion_update;
 pub mod settings_ui;
 use config::last_raid::LastRaid;
+use tracing::{error, info};
+use tracing_subscriber::layer::Layer;
+use tracing_subscriber::{fmt, layer::SubscriberExt, Registry};
+use tracing_subscriber::EnvFilter;
 
-use crate::{config::expansion_config::{ExpansionSeasons, Expansions}, expansion_update::ExpansionUpdateChecker};
+use crate::{checker::{check_player::slug_to_name, raid_sheet::{Player, PlayerOnlyCheckType}}, config::expansion_config::{ExpansionSeasons, Expansions}, expansion_update::ExpansionUpdateChecker};
+
+fn init_logging() {
+    let log_file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open("RaidChecker.log")
+        .expect("Unable to open log file");
+
+    let file_writer = move || BufWriter::new(log_file.try_clone().expect("Failed to clone log file"));
+
+    let file_filter = EnvFilter::try_new("info").unwrap();
+    let console_filter: EnvFilter = EnvFilter::try_new("info").unwrap();
+
+    let file_layer = fmt::layer()
+        .with_writer(file_writer)
+        .with_ansi(false)
+        .with_line_number(true)
+        .with_file(true)
+        .with_filter(file_filter);
+
+    let console_layer = fmt::layer()
+        .with_ansi(true)
+        .with_filter(console_filter);
+
+    let subscriber = Registry::default()
+        .with(file_layer)
+        .with(console_layer);
+
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Failed to set global subscriber");
+}
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions::default();
+    init_logging();
     eframe::run_native("Raid Checker", options, Box::new(|_| Ok(Box::<RaidHelperCheckerApp>::default())))
 }
 
@@ -95,7 +134,7 @@ impl RaidHelperCheckerApp{
                         season_id = season.seasonal_identifier.clone();
                         season_ts_start = season.season_start;
                     } else {
-                        println!("{} {} has not started yet, ignoring. Will activate on {}", self.expansions.latest_expansion_identifier, season.seasonal_identifier, season_start.format("%A, %B %d %Y").to_string());
+                        info!("{} {} has not started yet, ignoring. Will activate on {}", self.expansions.latest_expansion_identifier, season.seasonal_identifier, season_start.format("%A, %B %d %Y").to_string());
                     }
                 } else {
                     season_id = season.seasonal_identifier.clone();
@@ -166,7 +205,7 @@ impl eframe::App for RaidHelperCheckerApp {
                     if ui.button("Check sign-up URL").clicked() {
                         self.raid_questions.state = checker::raid_questions::QuestionState::AskSaved;
                         self.raid_questions.ignore_url_question = false;
-                        self.raid_questions.player_only = false;
+                        self.raid_questions.player_only = PlayerOnlyCheckType::None;
                     }
 
                     if ui.button("Check single character").clicked() {
@@ -180,18 +219,36 @@ impl eframe::App for RaidHelperCheckerApp {
             });
 
             let mut should_recheck = false;
-            self.signup_ui.draw_signups(ctx, &mut self.settings, &self.raid_sheet.active_players, &self.raid_sheet.queued_players, &mut should_recheck, &mut self.clear_target, &mut self.checked_player);
+            let recheck_player = self.signup_ui.draw_signups(ctx, &mut self.settings, &self.raid_sheet.active_players, &self.raid_sheet.queued_players, &mut should_recheck, &mut self.clear_target, &mut self.checked_player);
+            if recheck_player.is_some() {
+                let armory_url = recheck_player.as_ref().unwrap().armory_url.clone();
+                let parts: Vec<_> = armory_url.trim_end_matches('/').rsplitn(3, '/').collect();
+                let realm = slug_to_name(parts[1], &self.realms);
+                if realm.is_none() {
+                    error!("Realm from slug not found for player: {} {}", recheck_player.as_ref().unwrap().name, parts[1]);
+                    return;
+                }
+                info!("Rechecking player: {} {}-{}", recheck_player.as_ref().unwrap().name, parts[0], realm.as_ref().unwrap());
+                self.raid_questions.state = QuestionState::AskSaved;
+                self.raid_questions.ignore_url_question = true;
+                self.raid_questions.player_only = PlayerOnlyCheckType::PlayerFromSheet(recheck_player.as_ref().unwrap().discord_id.clone());
+                let _ = self.raid_questions.ask_questions(ctx, &self.expansions, Some(format!("{}-{}", parts[0], realm.unwrap())), Some(PlayerOnlyCheckType::PlayerFromSheet(recheck_player.as_ref().unwrap().discord_id.clone())));
+            }
 
             if should_recheck {
                 self.raid_questions.state = QuestionState::AskSaved;
-                let _ = self.raid_questions.ask_questions(ctx,  &self.expansions, Some(self.last_raid.raid_url.clone()), Some(false));
+                let _ = self.raid_questions.ask_questions(ctx,  &self.expansions, Some(self.last_raid.raid_url.clone()), Some(PlayerOnlyCheckType::None));
             }
 
             if self.raid_questions.state != checker::raid_questions::QuestionState::None {
                 let ret = self.raid_questions.ask_questions(ctx, &self.expansions, None, None);
                 if ret.is_some() {
                     let (url, raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty, player_only) = ret.unwrap();
-                    self.raid_sheet.init(url, player_only, self.settings.clone(), self.expansions.clone(), self.realms.clone(), raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty, self.last_raid.clone());
+                    self.raid_sheet.init(url, player_only.clone(), self.settings.clone(), self.expansions.clone(), self.realms.clone(), raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty, self.last_raid.clone());
+
+                    if player_only != PlayerOnlyCheckType::Player && player_only != PlayerOnlyCheckType::None {
+                        self.raid_questions.raid_helper_url = String::new();
+                    }
                 }
             }
 
@@ -206,7 +263,9 @@ impl eframe::App for RaidHelperCheckerApp {
 
             if self.draw_player_check == true {
                 self.raid_questions.state = QuestionState::AskSaved;
-                let _ = self.raid_questions.ask_questions(ctx, &self.expansions, None, Some(true));
+                self.raid_questions.ignore_url_question = false;
+                self.raid_questions.player_only = PlayerOnlyCheckType::Player;
+                let _ = self.raid_questions.ask_questions(ctx, &self.expansions, None, Some(PlayerOnlyCheckType::Player));
                 self.draw_player_check = false;
             }
         }

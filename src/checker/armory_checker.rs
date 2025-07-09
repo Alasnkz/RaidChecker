@@ -4,6 +4,7 @@ use chrono::{DateTime, Datelike, Duration, Local, NaiveDateTime, TimeZone, Utc, 
 use regex::Regex;
 use reqwest::blocking::Client;
 use serde::Deserialize;
+use tracing::{error, info, warn};
 
 use crate::config::{self, expansion_config::{ExpansionEnchants, Expansions}, settings::Settings};
 
@@ -202,6 +203,7 @@ pub enum AOTCStatus {
     None,
     Account,
     Character,
+    CuttingEdge(bool, bool, bool), // Account, Character, Charcter Heroic Kill
     Error
 }
 
@@ -214,31 +216,31 @@ impl ArmoryChecker {
             .send();
 
         if response.is_err() {
-            println!("Error getting armory response: {:?}", response.err());
+            error!("Error getting armory response: {:?}", response.err());
             return None;
         }
 
         let text = response.unwrap().text();
         if text.is_err() {
-            println!("Error getting armory response (text): {:?}", text.err());
+            error!("Error getting armory response (text): {:?}", text.err());
             return None;
         }
         let re = Regex::new(r#"var\s+characterProfileInitialState\s*=\s*(\{.*?\});"#).unwrap();
         if let Some(captures) = re.captures(&text.unwrap()) {
             let armory_response: Result<ArmoryCharacterResponse, serde_json::Error> = serde_json::from_str(&&captures[1]);
             if armory_response.is_err() {
-                println!("Error parsing armory response: {:?}", armory_response.err());
+                error!("Error parsing armory response: {:?}", armory_response.err());
                 return None;
             }
 
             let tmp = armory_response.unwrap();
-            println!("Armory response: {:?}", tmp.clone().character.average_item_level);
             return Some(tmp);
         }
         return None;
     }
 
     pub fn check_raid_boss_kills(armory: &ArmoryCharacterResponse, settings: &config::settings::Settings) -> Vec<String> {
+        info!("Checking raid boss kills for raid ID: {} and difficulty: {}", settings.raid_id, settings.raid_difficulty);
         let mut unkilled_bosses = Vec::new();
         let raid_check = armory.summary.raids.get(settings.raid_id as usize);
 
@@ -262,23 +264,25 @@ impl ArmoryChecker {
                     raid_boss_id += 1;
                 }
             } else {
-                println!("Could not find difficulty for this raid.");
+                warn!("Could not find difficulty for raid ID: {} and difficulty: {}", settings.raid_id, settings.raid_difficulty);
             }
         } else {
-            println!("Could not find raid.");
+            warn!("Could not find raid with ID: {}", settings.raid_id);
         }
 
-        println!("Unkilled bosses: {:?}", unkilled_bosses);
+        info!("Unkilled bosses for raid ID {} and difficulty {}: {:?}", settings.raid_id, settings.raid_difficulty, unkilled_bosses);
         unkilled_bosses
     }
 
     pub fn check_gear(armory: &ArmoryCharacterResponse, settings: &config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig) -> (Vec<String>, Vec<String>, Vec<String>, i32) {
+        info!("--- GEAR CHECK ---");
         let mut enchant_vec = Vec::new();
         let mut socket_vec = Vec::new();
         let mut special_item = Vec::new();
         let mut embelishments = 0;
 
         if armory.character.gear.is_empty() {
+            info!("No gear found for character");
             return (vec![String::from("No gear found.")], Vec::new(), Vec::new(), -1);
         }
 
@@ -288,6 +292,7 @@ impl ArmoryChecker {
             if gear.1.bonus_list.is_some() {
                 for bonus in gear.1.bonus_list.clone().unwrap() {
                     if bonus == expansion.gear_embelishment_bonus_id {
+                        info!("Found embelishment bonus on gear: {}", gear.1.inventory_type.gear_type);
                         embelishments += 1;
                     }
                 }
@@ -323,6 +328,7 @@ impl ArmoryChecker {
                 if (gear.0 == "offhand" && gear.1.inventory_type.gear_type.to_lowercase() == "weapon") || gear.0 != "offhand" {
                     let str = Self::check_enchant_slot(&expansion, &gear.1, enchantment_slot.unwrap(), &settings, expansions);
                     if str.len() > 0 {
+                        info!("{str}");
                         enchant_vec.push(str);
                     }
                 }
@@ -330,19 +336,23 @@ impl ArmoryChecker {
                 // Check for sockets (if needed)
                 let str = Self::check_gear_socket( &gear.1, enchantment_slot.unwrap(), &settings);
                 if str.len() > 0 {
+                    info!("{str}");
                     socket_vec.push(str);
                 }
 
                 let special = Self::check_special_item(&expansion, &gear.1, enchantment_slot.unwrap(), &settings);
                 if special.len() > 0 {
+                    info!("{special}");
                     special_item.push(special);
                 }
             }
         }
+        info!("--- END GEAR CHECK ---");
         (enchant_vec, socket_vec, special_item, embelishments)
     }
 
     fn check_enchant_slot(expansion: &Expansions, slot: &CharacterGear, enchants: &ExpansionEnchants, settings: &Settings, expansions: &config::expansion_config::ExpansionsConfig) -> String {
+        info!("Checking enchant slot: {}", enchants.slot);
         let binding = settings.enchantments.as_array();
         let enchant_options_opt = binding.iter().find(|x| {
             x.1 == enchants.slot
@@ -371,7 +381,7 @@ impl ArmoryChecker {
             let enchant = slot.enchantments.clone().unwrap();
             if enchant_options.0.require_latest == true {
                 if seasonal_item.is_some() && !seasonal_item.unwrap().enchant_ids.is_empty() {
-                    println!("Checking seasonal item for slot: {}", enchants.slot);
+                    info!("Checking seasonal item for slot: {}", enchants.slot);
                     let seasonal_enchant_ids = seasonal_item.clone().unwrap().enchant_ids.clone();
                     let seasonal_lesser_enchant_ids = seasonal_item.clone().unwrap().lesser_enchant_ids.clone();
 
@@ -407,6 +417,7 @@ impl ArmoryChecker {
     }
     
     fn check_gear_socket(slot: &CharacterGear, enchants: &ExpansionEnchants, settings: &Settings) -> String {
+        info!("Checking gear socket for slot: {}", enchants.slot);
         let binding = settings.enchantments.as_array();
         let enchant_options_opt = binding.iter().find(|x| {
             x.1 == enchants.slot
@@ -430,6 +441,7 @@ impl ArmoryChecker {
     }
 
     fn check_special_item(expansion: &Expansions, slot: &CharacterGear, enchants: &ExpansionEnchants, settings: &Settings) -> String {
+        info!("Checking special item for slot: {}", enchants.slot);
         let binding = settings.enchantments.as_array();
         let enchant_options_opt = binding.iter().find(|x| {
             x.1 == enchants.slot
@@ -444,7 +456,7 @@ impl ArmoryChecker {
 
             let slot_name = slot.inventory_type.clone().gear_type.to_lowercase();
             if enchant_options.0.require_special_item == true && seasonal_item.is_some() && seasonal_item.unwrap().special_item_id.is_some() {
-                println!("Checking seasonal item for slot: {}", enchants.slot);
+                info!("Checking seasonal item for slot: {}", enchants.slot);
                 let special =  seasonal_item.unwrap().special_item_id.clone().unwrap();
                 let found = special.iter().find(|&&x| {
                     x == slot.id
@@ -514,6 +526,7 @@ impl ArmoryChecker {
     }
 
     pub fn check_saved_bosses(armory: &ArmoryCharacterResponse, raid_id: i32, raid_difficulty: i32, boss_kills: &Vec<i32>, check_saved_prev_difficulty: bool) -> Vec<String> {
+        info!("Checking saved bosses for raid ID: {} and difficulty: {}", raid_id, raid_difficulty);
         let saved_kills = Self::check_raid_kills(armory, raid_id, raid_difficulty, boss_kills); 
         let prev_diff_saved_kills = if check_saved_prev_difficulty && raid_difficulty > 1 {
             Self::check_raid_kills(armory, raid_id, raid_difficulty - 1, boss_kills)
@@ -575,13 +588,17 @@ impl ArmoryChecker {
 
     // TODO: This breaks on windows release builds??
     pub fn check_aotc(_url: String, armory: &ArmoryCharacterResponse, expansions: &config::expansion_config::ExpansionsConfig, raid_id: i32) -> AOTCStatus {
+        info!("--- AOTC CHECK ---");
         let binding = expansions.latest_expansion.clone().unwrap();
         let raid = binding.find_raid_by_id(raid_id);
         if raid.is_none() {
+            error!("Could not find raid with id: {}", raid_id);
             return AOTCStatus::Error;
         }
         let achievement_id = raid.unwrap().aotc_achievement_id;
+        let ce_achievement_id = raid.unwrap().ce_achievement_id;
         if achievement_id == -1 {
+            info!("No AOTC achievement found for raid with id: {}", raid_id);
             return AOTCStatus::None;
         }
 
@@ -595,43 +612,83 @@ impl ArmoryChecker {
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
             .send().unwrap()
             .text().unwrap();
+
         let re = Regex::new(r#"var\s+characterProfileInitialState\s*=\s*(\{.*?\});"#).unwrap();
         if let Some(captures) = re.captures(&response) {
+            info!("Found character profile initial state in response.");
             let js_variable = &captures[1];
             let armory_response: ArmoryCharacterAchievementResponse = serde_json::from_str(&js_variable).unwrap();
             for category in armory_response.achievement_category.subcategories {
+                info!("Checking category: {}", category.1.name);
                 if category.1.id == "raids" {
+                    info!("Found raids category in achievements.");
                     for achievement in category.1.achievements {
-                        if achievement.id == achievement_id {
+                        info!("Checking achievement: {} (ID: {})", achievement.name, achievement.id);
+                        if achievement.id == achievement_id || achievement.id == ce_achievement_id{
+                            info!("Found AOTC/CE achievement: {} (ID: {})", achievement.name, achievement.id);
                             let raid_summary = armory.summary.raids.get(raid_id as usize);
                             if raid_summary.is_some() {
-                                let raid_difficulty = raid_summary.unwrap().difficulties.get(2 as usize);
-                                if raid_difficulty.is_some() {
-                                    if raid_difficulty.unwrap().bosses.last().unwrap().kill_count >= 1 {
-                                        return AOTCStatus::Character;
+                                info!("Found raid summary for raid ID: {}", raid_id);
+                                let mut char_ce = false;
+                                if achievement.id == ce_achievement_id {
+                                    info!("Account has Cutting Edge achievement, checking for Mythic last boss kill.");
+                                    let mythic_difficulty = raid_summary.unwrap().difficulties.get(3 as usize);
+                                    if mythic_difficulty.is_some() && mythic_difficulty.unwrap().bosses.last().unwrap().kill_count >= 1 {
+                                        info!("Character has Cutting Edge achievement.");
+                                        char_ce = true;
                                     }
                                 }
+
+                                let raid_difficulty = raid_summary.unwrap().difficulties.get(2 as usize);
+                                if raid_difficulty.is_some() {
+                                    info!("Found heroic difficulty for raid ID: {}", raid_id);
+                                    if raid_difficulty.unwrap().bosses.last().unwrap().kill_count >= 1 {
+                                        info!("Heroic difficulty has last boss killed, character AOTC achieved.");
+
+                                        if achievement.id == ce_achievement_id {
+                                            info!("Character CE has killed last boss on heroic.");
+                                            return AOTCStatus::CuttingEdge(true, char_ce, true);
+                                        } else {
+                                            info!("Character has AOTC achievement.");
+                                            return AOTCStatus::Character;
+                                        }
+                                    }
+                                }
+
+                                if achievement.id == ce_achievement_id && char_ce{
+                                    info!("Character has Cutting Edge achievement, but no end boss heroic kill found for character.");
+                                    return AOTCStatus::CuttingEdge(true, char_ce, false);
+                                }
                             }
+                            if achievement_id == ce_achievement_id {
+                                info!("Account has Cutting Edge achievement, no end boss heroic kill found for character.");
+                                return AOTCStatus::CuttingEdge(true, false, false);
+                            }
+                            info!("Account has AOTC achievement, no end boss heroic kill found for character.");
                             return AOTCStatus::Account;
                         }
                     }
                 }
             }
         } else {
+            error!("Could not find character profile initial state in response.");
             return AOTCStatus::Error;
         }
+        info!("No AOTC data found for account.");
         return AOTCStatus::None;
     }
 
     pub fn check_raid_buff(_url: String, expansions: &config::expansion_config::ExpansionsConfig, raid_id: i32) -> (i32, bool) {
+        info!("Checking for raid buff");
         let binding = expansions.latest_expansion.clone().unwrap();
         let raid = binding.find_raid_by_id(raid_id);
         if raid.is_none() {
+            info!("Could not find raid with id: {}", raid_id);
             return (0, false);
         }
 
         if raid.clone().unwrap().reputation.is_none() {
-            println!("No raid reputation found for this raid.");
+            info!("No raid reputation found for this raid.");
             return (0, false);
         }
 
@@ -693,8 +750,12 @@ impl ArmoryChecker {
                 let first_renown = missing_buff_levels.first().unwrap().clone();
                 let diff = first_renown - renown;
                 let possible = ((diff * data.max_value.unwrap() as i32) as f32 / weekly as f32) < 1.0 as f32;
+                info!("Missing buff levels: {:?}, possible to get a buff with 5k backup: {}", missing_buff_levels, possible);
                 return (missing_buff_levels.len() as i32, possible);
+            } else {
+                info!("No missing buff levels found, current renown: {}, max renown: {}", renown, max_renown);
             }
+
         }
         (0, false)
     }

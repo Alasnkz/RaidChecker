@@ -1,6 +1,7 @@
-use egui::{CentralPanel, Hyperlink, SidePanel, Ui};
+use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui};
+use tracing::info;
 
-use crate::{checker::{armory_checker::AOTCStatus, check_player::PlayerData}, config::{self, settings::{PriorityChecks}}};
+use crate::{checker::{armory_checker::AOTCStatus, check_player::PlayerData, raid_sheet::Player}, config::{self, settings::PriorityChecks}};
 
 pub struct SignUpsUI {
     pub target_player: Option<PlayerData>
@@ -16,8 +17,9 @@ impl Default for SignUpsUI {
 
 impl SignUpsUI {
     pub fn draw_signups(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, primary_people: &Vec<PlayerData>, 
-        queued_people: &Vec<PlayerData>, should_recheck: &mut bool, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> bool {
+        queued_people: &Vec<PlayerData>, should_recheck: &mut bool, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> Option<PlayerData> {
         
+        let mut recheck_player = None;
         if *clear_target {
             self.target_player = None;
             *clear_target = false;
@@ -46,14 +48,14 @@ impl SignUpsUI {
                         self.target_player = Some(player.clone());
                     }
                 }
-                false
             });
-            false
         });
 
         CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                self.draw_player_info(ui, settings, None);
+                if self.draw_player_info(ui, settings, None) == true {
+                    recheck_player = Some(self.target_player.clone().unwrap());
+                }
             }); 
         });
 
@@ -71,7 +73,7 @@ impl SignUpsUI {
                 });
         }
        
-        false
+        recheck_player
     }
 
     pub fn colour_player_label(settings: &mut config::settings::Settings, player: &PlayerData) -> egui::Color32 {
@@ -137,27 +139,31 @@ impl SignUpsUI {
         egui::Color32::GREEN
     }
 
-    pub fn draw_player_info(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, checked_player: Option<PlayerData>) {
+    pub fn draw_player_info(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, checked_player: Option<PlayerData>) -> bool {
 
+        let mut should_recheck = false;
         let player = if checked_player.is_some() {
-            checked_player.unwrap()
+            checked_player.clone().unwrap()
         } else {
             if self.target_player.is_some() {
                 self.target_player.clone().unwrap()
             } else {
-                return;
+                return false;
             }
         };
 
         if player.skip_reason.is_some() {
             ui.label(format!("Skipped processing {}: {}", player.name.clone(), player.skip_reason.unwrap()));
-            return;
+            return false;
         }
 
         ui.horizontal(|ui| {
             ui.add(Hyperlink::from_label_and_url("Armory", format!("{}", player.armory_url)));
             let converted_url = player.armory_url.clone().replace("worldofwarcraft.blizzard.com/en-gb", "www.warcraftlogs.com");
             ui.add(Hyperlink::from_label_and_url("Logs", format!("{}", converted_url)));
+            if checked_player.as_ref().is_none() && ui.button("Recheck").on_hover_text("Rechecks this player.").clicked() == true {
+                should_recheck = true;
+            }
         });
 
         
@@ -243,19 +249,39 @@ impl SignUpsUI {
         if player.aotc_status != AOTCStatus::None {
             if player.aotc_status == AOTCStatus::Error {
                 ui.label(format!("{} has an error checking for AOTC.", player.name.clone()));
-                return;
             } else {
-                ui.label(format!("{} has AOTC on {}", player.name.clone(), match player.aotc_status {
+                let mut string = String::new();
+                match player.aotc_status {
                     AOTCStatus::Account => {
-                        "their account, but not on this character."
+                        string = format!("{} has AOTC on their account, but not on this character.", player.name.clone());
                     },
 
                     AOTCStatus::Character => {
-                        "this character"
+                        string = format!("{} has AOTC on this character.", player.name.clone());
                     },
 
-                    _ => { "Unknown" }
-                }));
+                    AOTCStatus::CuttingEdge(account, character, heroic_kill) => {
+                        if account == true && character == false {
+                            if heroic_kill == true {
+                                string = format!("{} has Cutting Edge on their account, but on this character, they have only earned AOTC.", player.name.clone());
+                            } else {
+                                string = format!("{} has Cutting Edge on their account, but not on this character. This character has not earned AOTC.", player.name.clone());
+                            }
+                        } else if account == true && character == true {
+                            if heroic_kill == false {
+                                string = format!("{} has Cutting Edge on this character, but has not earned AOTC on this character.", player.name.clone());
+                            } else {
+                                string = format!("{} has Cutting Edge on this character.", player.name.clone());
+                            }
+                            
+                        }
+                    },
+
+                    _ => { 
+                        ui.label("Unknown AOTC status.");
+                    }
+                }
+                ui.label(string);
             }
         } else {
             ui.label("Player does not have AOTC.");
@@ -267,5 +293,7 @@ impl SignUpsUI {
         if player.discord_id.len() != 0 {
             ui.label(format!("Discord Mention: <@{}>", player.discord_id));
         }
+
+        should_recheck
     }
 }

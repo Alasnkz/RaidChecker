@@ -1,6 +1,6 @@
 [package]
 name = "RaidChecker"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 
 [dependencies]
@@ -16,3 +16,6 @@ serde = { version = "1.0.219", features = ["derive"] }
 
 serde_json = "1.0.139"
 tokio = "1.43.0"
+tracing = "0.1.41"
+tracing-appender = "0.2.3"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }

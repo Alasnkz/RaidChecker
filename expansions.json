@@ -1,6 +1,6 @@
 {
-  "rhcu_version": "1.0.0",
-  "modified": 1751908528,
+  "rhcu_version": "1.0.3",
+  "modified": 1752010961,
   "latest_expansion_identifier": "TWW",
   "agnostic_gear_enchants": [
     {
@@ -286,7 +286,8 @@
                 "The Silken Court",
                 "Queen Ansurek"
               ],
-              "aotc_achievement_id": 40253
+              "aotc_achievement_id": 40253,
+              "ce_achievement_id": 40254
             }
           ]
         },
@@ -326,7 +327,8 @@
                 "Chrome King Gallywix"
               ],
               "aotc_achievement_id": 41298,
-              
+              "ce_achievement_id": 41297,
+
               "reputation": {
                 "raid_rep_slug": "gallagio-loyalty-rewards-club",
                 "raid_buff_renowns": [
@@ -415,7 +417,20 @@
                 "Fractillus",
                 "Nexus-King Salhadaar",
                 "Dimensius, the All-Devouring"
-              ]
+              ],
+              "aotc_achievement_id": 41624,
+              "ce_achievement_id": 41625,
+
+              "reputation": {
+                "raid_rep_slug": "manaforge-vandals",
+                "raid_buff_renowns": [
+                  4, 7, 10, 13, 15
+                ],
+                "renown_start": 1755057600,
+                "max_renown_value_weekly": 5000,
+                "renown_level_value": 2500,
+                "buff_size": 3
+              }
             }
           ],
           "seasonal_gear": [

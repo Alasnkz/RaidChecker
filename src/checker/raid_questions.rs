@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::config::{self, expansion_config::ExpansionRaid};
+use crate::{checker::{check_player::PlayerChecker, raid_sheet::PlayerOnlyCheckType}, config::{self, expansion_config::ExpansionRaid}};
 
 #[derive(PartialEq)]
 pub(crate) enum QuestionState {
@@ -17,11 +17,11 @@ pub struct RaidCheckQuestions {
 
     pub(crate) prev_raid_id: i32,
     pub(crate) saved_bosses: Vec<i32>,
-    raid_helper_url: String,
+    pub(crate) raid_helper_url: String,
     raid_helper_url_error: bool,
     pub(crate) ignore_url_question: bool,
     pub(crate) previous_difficulty: bool,
-    pub(crate) player_only: bool
+    pub(crate) player_only: PlayerOnlyCheckType
 }
 
 pub enum MatchType {
@@ -81,14 +81,14 @@ impl Default for RaidCheckQuestions {
             raid_helper_url_error: false,
             ignore_url_question: false,
             previous_difficulty: true,
-            player_only: false
+            player_only: PlayerOnlyCheckType::None
         }
     }
 }
 
 impl RaidCheckQuestions {
-    pub fn ask_questions(&mut self, ctx: &eframe::egui::Context, expansion_config: &config::expansion_config::ExpansionsConfig, url: Option<String>, is_player: Option<bool>) -> Option<(String, i32, i32, Vec<i32>, bool, bool)> {
-        let mut send_it: Option<(String, i32, i32, Vec<i32>, bool, bool)> = None;
+    pub fn ask_questions(&mut self, ctx: &eframe::egui::Context, expansion_config: &config::expansion_config::ExpansionsConfig, url: Option<String>, is_player: Option<PlayerOnlyCheckType>) -> Option<(String, i32, i32, Vec<i32>, bool, PlayerOnlyCheckType)> {
+        let mut send_it: Option<(String, i32, i32, Vec<i32>, bool, PlayerOnlyCheckType)> = None;
         if url.clone().is_some() {
             self.raid_helper_url = url.clone().unwrap();
             self.ignore_url_question = true;
@@ -117,7 +117,7 @@ impl RaidCheckQuestions {
                             }).clicked() {
                                 self.state = QuestionState::AskRaidHelperURL;
                                 self.raid_id = if self.raid_id == -1 {
-                                    expansion_config.latest_expansion.as_ref().unwrap().seasons.last().unwrap().raids.iter().last().unwrap().id
+                                    expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
                                 } else {
                                     self.raid_id
                                 };
@@ -226,7 +226,7 @@ impl RaidCheckQuestions {
 
             QuestionState::AskRaidHelperURL => {
                 if self.ignore_url_question && self.raid_helper_url.len() > 0 {
-                    send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only));
+                    send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only.clone()));
                     self.saved_bosses.clear();
                     self.raid_helper_url_error = false;
                     self.state = QuestionState::None;
@@ -236,7 +236,7 @@ impl RaidCheckQuestions {
                         .collapsible(false)
                         .resizable(false)
                         .show(ctx, |ui| {
-                        if self.player_only == true {
+                        if self.player_only == PlayerOnlyCheckType::Player {
                             ui.label("Please input the character name you would like to check.");
                         }
                         else {
@@ -253,8 +253,8 @@ impl RaidCheckQuestions {
                             if ui.button("Confirm").on_hover_ui(|ui| {
                                 ui.label("Sign ups on this URL will be checked.");
                             }).clicked() {
-                                if self.player_only == true {
-                                    send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only));
+                                if self.player_only == PlayerOnlyCheckType::Player {
+                                    send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only.clone()));
                                     self.saved_bosses.clear();
                                     self.raid_helper_url_error = false;
                                     self.state = QuestionState::None;
@@ -263,7 +263,7 @@ impl RaidCheckQuestions {
                                     if let Some(url) = check_raidhelper_url(self.raid_helper_url.clone()) {
                                         self.raid_helper_url = url;
                                         
-                                        send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only));
+                                        send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only.clone()));
                                         self.saved_bosses.clear();
                                         self.raid_helper_url_error = false;
                                         self.state = QuestionState::None;
