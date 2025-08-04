@@ -53,7 +53,7 @@ impl ExpansionUpdateChecker {
         let data: MiniJsonData = serde_json::from_slice(&remote_data).unwrap();
         let remote_version = Version::parse(&data.rhcu_version).unwrap();
         let local_version = Version::parse(RHCU_VERSION).unwrap();
-        info!("Local version: {}, Remote version: {}, Loacl checksum: {local_checksum}, Remote Checksum: {remote_checksum}", local_version, remote_version);
+        info!("Local version: {local_version}, Remote version: {remote_version}, Local checksum: {local_checksum}, Remote Checksum: {remote_checksum}");
         local_checksum != remote_checksum && remote_version.major == local_version.major && data.modified > local_data.modified
     }
 

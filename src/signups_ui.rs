@@ -1,5 +1,6 @@
 use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui};
 use tracing::info;
+use tracing_subscriber::fmt::format;
 
 use crate::{checker::{armory_checker::AOTCStatus, check_player::PlayerData, raid_sheet::Player}, config::{self, settings::PriorityChecks}};
 
@@ -29,10 +30,16 @@ impl SignUpsUI {
         .width_range(200.0..=300.0)
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                if ui.button("Recheck").on_hover_text("Rechecks the sign-ups.").clicked() {
-                    *should_recheck = true;
-                }
-                
+                ui.horizontal(|ui| {
+                    if ui.button("Recheck").on_hover_text("Rechecks the sign-ups.").clicked() {
+                        *should_recheck = true;
+                    }
+                    
+                    if ui.button("Summary").on_hover_text("Summarises the sign-ups.").clicked() {
+                        self.target_player = None;
+                    }
+                });      
+
                 for player in primary_people.iter() {
                     // Decide what colour they should be?
                     if ui.label(egui::RichText::new(player.name.clone()).color(Self::colour_player_label(settings, player))).clicked() {
@@ -53,8 +60,12 @@ impl SignUpsUI {
 
         CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                if self.draw_player_info(ui, settings, None) == true {
-                    recheck_player = Some(self.target_player.clone().unwrap());
+                if self.target_player.is_none() {
+                    self.draw_summary(ui, settings, primary_people, queued_people);
+                } else {
+                    if self.draw_player_info(ui, settings, None) == true {
+                        recheck_player = Some(self.target_player.clone().unwrap());
+                    }
                 }
             }); 
         });
@@ -137,6 +148,140 @@ impl SignUpsUI {
         }
 
         egui::Color32::GREEN
+    }
+
+    pub fn draw_summary(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, primary_people: &Vec<PlayerData>, queued_people: &Vec<PlayerData>) {
+        let mut bad = 0;
+        let mut aotc = 0;
+        let mut cutting_edge = 0;
+        let mut no_aotc = 0;
+
+        let mut bad_primary = Vec::new();
+        let mut bad_secondary = Vec::new();
+
+        let combined = primary_people.iter().chain(queued_people.iter()).collect::<Vec<&PlayerData>>();
+        for player in combined.iter() {
+            let mut set_bad = false;
+            let mut bad_message = format!("<@{}> Your signed character {} does not meet the requirements:\n", player.discord_id, player.name.clone());
+            if player.skip_reason.is_some() {
+                bad += 1;
+                continue;
+            }
+
+            if player.ilvl < settings.average_ilvl {
+                set_bad = true;
+                bad_message += format!("Your ilvl {} does not match the required ilvl for this raid: {}\n", player.ilvl, settings.average_ilvl).as_str();
+            }
+
+            if player.unkilled_bosses.len() > 0 {
+                set_bad = true;
+                bad_message += format!("You have not killed the following bosses:\n").as_str();
+                for boss in player.unkilled_bosses.iter() {
+                    bad_message += format!("\t{}\n", boss).as_str();
+                }
+            }
+
+            if player.saved_bosses.len() > 0 {
+                set_bad = true;
+                bad_message += format!("You are saved to the following bosses:\n").as_str();
+                for boss in player.saved_bosses.iter() {
+                    bad_message += format!("\t{}\n", boss).as_str();
+                }
+            }
+
+            if player.bad_gear.len() > 0 {
+                set_bad = true;
+                bad_message += format!("You have the following gear that does not meet the requirements:\n").as_str();
+                for item in player.bad_gear.iter() {
+                    bad_message += format!("\t{}\n", item).as_str();
+                }
+            }
+
+            if player.bad_socket.len() > 0 {
+                set_bad = true;
+                bad_message += format!("You have the following sockets that do not meet the requirements:\n").as_str();
+                for item in player.bad_socket.iter() {
+                    bad_message += format!("\t{}\n", item).as_str();
+                }
+            }
+
+            if player.bad_special_item.len() > 0 {
+                set_bad = true;
+                bad_message += format!("You have the following special items that do not meet the requirements:\n").as_str();
+                for item in player.bad_special_item.iter() {
+                    bad_message += format!("\t{}\n", item).as_str();
+                }
+            }
+
+            if player.num_embelishments != -1 && player.num_embelishments < settings.embelishments {
+                set_bad = true;
+                bad_message += format!("You are missing **{}** embelishments, you need at least **{}**\n", settings.embelishments - player.num_embelishments, settings.embelishments).as_str();
+            }
+
+            if player.buff_status > 0 {
+                set_bad = true;
+                bad_message += format!("You are missing **{}%** raid buff!\n", player.buff_status * 3).as_str();
+                
+                if player.buff_possible == false {
+                    bad_message += format!("You can **not** catch up with the raid buff this week.\n").as_str();
+                } else {
+                    bad_message += format!("You can get a **3%** raid buff this week, **assuming you have not done any renown this week**. (5000 catchup)\n").as_str();
+                    if player.buff_status > 1 {
+                        bad_message += format!("Due to catch up being capped, **you will miss {}%** of the raid buff.\n", (player.buff_status - 1) * 3).as_str();
+                    }
+                }
+            }
+
+            if set_bad == true{
+                if player.queued {
+                    bad_secondary.push(bad_message);
+                } else {
+                    bad_primary.push(bad_message);
+                }
+                bad += 1;
+            }
+
+            if player.aotc_status != AOTCStatus::None {
+                match player.aotc_status {
+                    AOTCStatus::Account => {
+                        aotc += 1;
+                    },
+
+                    AOTCStatus::Character => {
+                        aotc += 1;
+                    },
+
+                    AOTCStatus::CuttingEdge(_, _, _) => {
+                        cutting_edge += 1;
+                    },
+
+                    _ => {
+                        no_aotc += 1;
+                    }
+                }
+            } else {
+                no_aotc += 1;
+            }
+        }
+
+        ui.label(format!("{}/{} haved passed the checks.", (primary_people.len() + queued_people.len()) - bad, primary_people.len() + queued_people.len()));
+        ui.label(format!("{} people do not have AOTC/CE.", no_aotc));
+        ui.label(format!("{} people have AOTC.", aotc));
+        ui.label(format!("{} people have Cutting Edge.", cutting_edge));
+        ui.label("");
+
+        for message in bad_primary.iter() {
+            ui.label(message.clone());
+            ui.label("");
+            ui.label("");
+        }
+
+        ui.heading("Queued People Issues");
+        for message in bad_secondary.iter() {
+            ui.label(message.clone());
+            ui.label("");
+            ui.label("");
+        }
     }
 
     pub fn draw_player_info(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, checked_player: Option<PlayerData>) -> bool {
