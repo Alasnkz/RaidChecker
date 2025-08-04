@@ -113,7 +113,6 @@ impl Default for RaidHelperCheckerApp {
         if app.expansion_update_checker.need_expansion_json_update() {
             app.ask_json_update = true;
         }
-
         app
     }
 }
