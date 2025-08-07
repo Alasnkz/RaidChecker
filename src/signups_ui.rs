@@ -160,6 +160,11 @@ impl SignUpsUI {
         let mut bad_secondary = Vec::new();
 
         let combined = primary_people.iter().chain(queued_people.iter()).collect::<Vec<&PlayerData>>();
+        if combined.len() == 0 {
+            ui.label("A general summary of the sign-ups will be shown here.");
+            return;
+        }
+
         for player in combined.iter() {
             let mut set_bad = false;
             let mut bad_message = format!("<@{}> Your signed character {} does not meet the requirements:\n", player.discord_id, player.name.clone());

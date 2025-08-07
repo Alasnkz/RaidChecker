@@ -1,6 +1,6 @@
 {
   "rhcu_version": "1.0.3",
-  "modified": 1754441425,
+  "modified": 1754597549,
   "latest_expansion_identifier": "TWW",
   "agnostic_gear_enchants": [
     {
@@ -439,6 +439,12 @@
               "sub_slots": ["back"],
               "special_item_id": [
                 235499
+              ],
+              "greater_socket_item": [
+                238045,
+                238046,
+                238044,
+                238042
               ],
               "has_socket": true
             }

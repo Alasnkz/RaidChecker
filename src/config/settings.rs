@@ -8,7 +8,9 @@ pub struct EnchantmentSlotSetting {
     #[serde(default = "default_require_greater")]
     pub require_special_item: bool,
     #[serde(default = "default_require_greater")]
-    pub require_greater: bool
+    pub require_greater: bool,
+    #[serde(default = "default_require_greater")]
+    pub require_greater_socket: bool,
 }
 
 fn default_require_greater() -> bool {
@@ -48,6 +50,7 @@ impl Default for EnchantmentSlotSetting {
             require_sockets: 0,
             require_special_item: false,
             require_greater: false,
+            require_greater_socket: false,
         }
     }
 }

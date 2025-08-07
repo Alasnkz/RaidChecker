@@ -13,6 +13,8 @@ pub struct ExpansionEnchants {
     pub special_item_id: Option<Vec<i32>>,
     #[serde(default="default_false")]
     pub has_socket: bool,
+    #[serde(default="default_vec")]
+    pub greater_socket_item: Vec<i32>, // Some items have sockets that can have greater gems/fibers in them. (TWW S3 Reshii Wraps)
 }
 
 fn default_false() -> bool {

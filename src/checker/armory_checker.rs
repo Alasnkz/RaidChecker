@@ -435,6 +435,14 @@ impl ArmoryChecker {
                     return format!("{} has {} socket{} that are not filled with a gem", slot_name, enchant_options_opt.unwrap().0.require_sockets - count, if count > 1 { "s" } else { "" });
                 }
             }
+
+            if enchant_options.0.require_greater_socket == true {
+                if slot.sockets.is_some() && slot.sockets.clone().unwrap().iter().find(|x| x._item.is_some() && enchants.greater_socket_item.iter().find(|y| x._item.as_ref().unwrap()._id as i32 == **y).is_some()).is_some() {
+                    return String::default();
+                } else {
+                    return format!("{} does not have a greater gem socketed!", slot_name);
+                }
+            }
         }
         
         return String::default();

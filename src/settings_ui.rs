@@ -112,6 +112,9 @@ impl SettingsUi {
                             let has_socket = (proper_item.is_some() && proper_item.unwrap().has_socket) || 
                                 (seasonal_item.is_some() && seasonal_item.unwrap().has_socket);
 
+                            let has_greater_socket_item = (proper_item.is_some() && !proper_item.unwrap().greater_socket_item.is_empty()) ||
+                                (seasonal_item.is_some() && !seasonal_item.unwrap().greater_socket_item.is_empty());
+
                             if !has_enchant && !has_expansional_enchant && item.0.require_slot {
                                 println!("{} has a enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
                                 item.0.require_slot = false;
@@ -131,6 +134,11 @@ impl SettingsUi {
                             if !has_socket && item.0.require_sockets > 0 {
                                 println!("{} has a socket requirement, but the slot does not require sockets, turning it off.", item.1);
                                 item.0.require_sockets = 0;
+                            }
+
+                            if !has_greater_socket_item && item.0.require_greater_socket {
+                                println!("{} has a greater socket item requirement, but there are no greater socket items associated with it, turning it off.", item.1);
+                                item.0.require_greater_socket = false;
                             }
 
                             if !has_lesser_enchants && item.0.require_greater {
@@ -159,6 +167,9 @@ impl SettingsUi {
                                 
                                 if has_socket {
                                     ui.add(egui::Slider::new(&mut item.0.require_sockets, 0..=10).text("Sockets required"));
+                                    if has_greater_socket_item {
+                                        ui.checkbox(&mut item.0.require_greater_socket, "Require greater socket item").on_hover_text("Checks to see if the item has a \"greater\" gem/fibre socketed into it, notable for TWW S3 Reshii Wraps fibers.");
+                                    }
                                 }
                                 
                             });
