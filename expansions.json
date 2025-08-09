@@ -239,7 +239,15 @@
         },
         {
           "slot": "waist",
-          "has_socket": true
+          "sub_slots": [],
+          "enchant_ids": [],
+          "lesser_enchant_ids": [],
+          "special_item_id": [
+            245964,
+            242664,
+            245965,
+            245966
+          ]
         },
         {
           "slot": "head",
