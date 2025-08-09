@@ -686,18 +686,18 @@ impl ArmoryChecker {
         return AOTCStatus::None;
     }
 
-    pub fn check_raid_buff(_url: String, expansions: &config::expansion_config::ExpansionsConfig, raid_id: i32) -> (i32, bool) {
+    pub fn check_raid_buff(_url: String, expansions: &config::expansion_config::ExpansionsConfig, raid_id: i32) -> (i32, bool, i32, i32) {
         info!("Checking for raid buff");
         let binding = expansions.latest_expansion.clone().unwrap();
         let raid = binding.find_raid_by_id(raid_id);
         if raid.is_none() {
             info!("Could not find raid with id: {}", raid_id);
-            return (0, false);
+            return (0, false, 0, 0);
         }
 
         if raid.clone().unwrap().reputation.is_none() {
             info!("No raid reputation found for this raid.");
-            return (0, false);
+            return (0, false, 0, 0);
         }
 
         let client = Client::new();
@@ -735,15 +735,17 @@ impl ArmoryChecker {
             }
         }
     
-        if o_data.is_some() {
-            let time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(reputation.renown_start, 0).unwrap(), Utc);
-            let now = Utc::now();
-            let duration = now - time;
-            let weeks = duration.num_weeks() + 1;
-            let max_renown = weeks + 1; // Can gain 2 renown on the first week.
+        let time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(reputation.renown_start, 0).unwrap(), Utc);
+        let now = Utc::now();
+        let duration = now - time;
+        let weeks = duration.num_weeks() + 1;
+        let max_renown = weeks + 1; // Can gain 2 renown on the first week.
+        let buff_renowns = reputation.raid_buff_renowns;
 
+        if o_data.is_some() {
             let data = o_data.unwrap();
-            let buff_renowns = reputation.raid_buff_renowns;
+            info!("Reputation data found: {:?}", data);
+            
             let renown = data.standing.unwrap().split(" ").last().unwrap().parse::<i32>().unwrap();
             let renown_amount = data.value.unwrap_or(0) as i32;
             let weekly = reputation.max_renown_value_weekly + renown_amount; // Add our current renown amount to the weekly cap.
@@ -754,17 +756,35 @@ impl ArmoryChecker {
                 .collect();
 
             if missing_buff_levels.len() > 0 {
-                // Figure out if we can get the buff with 5k backup
                 let first_renown = missing_buff_levels.first().unwrap().clone();
                 let diff = first_renown - renown;
-                let possible = ((diff * data.max_value.unwrap() as i32) as f32 / weekly as f32) < 1.0 as f32;
+                let possible = ((diff * data.max_value.unwrap() as i32) as f32 / weekly as f32) <= 1.0 as f32;
                 info!("Missing buff levels: {:?}, possible to get a buff with 5k backup: {}", missing_buff_levels, possible);
-                return (missing_buff_levels.len() as i32, possible);
+                return (missing_buff_levels.len() as i32, possible, reputation.buff_size, reputation.max_renown_value_weekly);
             } else {
                 info!("No missing buff levels found, current renown: {}, max renown: {}", renown, max_renown);
             }
 
+        } else {
+            info!("No reputation data found for raid: {}", raid_id);
+            let renown = 1; // Assume we'll start at 1.
+            let missing_buff_levels: Vec<i32> = buff_renowns
+                .iter()
+                .filter(|&&lvl| lvl <= max_renown as i32 && lvl > renown)
+                .copied()
+                .collect();
+
+            if missing_buff_levels.len() > 0 {
+                let first_renown = missing_buff_levels.first().unwrap().clone();
+                let diff = first_renown - renown;
+                println!("{} {}", diff, reputation.renown_level_value);
+                let possible = (diff as f32 * reputation.renown_level_value as f32 / reputation.max_renown_value_weekly as f32) <= 1.0;
+                info!("Missing buff levels: {:?}, possible to get a buff with 5k backup: {}", missing_buff_levels, possible);
+                return (missing_buff_levels.len() as i32, possible, reputation.buff_size, reputation.max_renown_value_weekly);
+            } else {
+                info!("No missing buff levels found, current renown: {}, max renown: {}", renown, max_renown);
+            }
         }
-        (0, false)
+        (0, false, 0, 0)
     }
 }

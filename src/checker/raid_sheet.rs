@@ -234,8 +234,7 @@ impl RaidSheet {
                         ilvl: 0,
                         saved_bosses: Vec::new(),
                         aotc_status: super::armory_checker::AOTCStatus::None,
-                        buff_status: 0,
-                        buff_possible: false,
+                        buff_status: (0, false, 0, 0),
                         skip_reason: Some("Could not find player".to_owned()),
                         armory_url: "".to_owned(),
                         queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" 

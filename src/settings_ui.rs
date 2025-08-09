@@ -107,7 +107,8 @@ impl SettingsUi {
                                 (seasonal_item.is_some() && seasonal_item.unwrap().lesser_enchant_ids.is_some() && !seasonal_item.unwrap().lesser_enchant_ids.as_ref().unwrap().is_empty()) || 
                                 (agnostic_item.is_some() && agnostic_item.unwrap().lesser_enchant_ids.is_some() && !agnostic_item.unwrap().lesser_enchant_ids.as_ref().unwrap().is_empty());
 
-                            let has_special_item = seasonal_item.is_some() && seasonal_item.unwrap().special_item_id.is_some();
+                            let has_special_item = (proper_item.is_some() && proper_item.unwrap().special_item_id.is_some()) ||
+                                (seasonal_item.is_some() && seasonal_item.unwrap().special_item_id.is_some());
 
                             let has_socket = (proper_item.is_some() && proper_item.unwrap().has_socket) || 
                                 (seasonal_item.is_some() && seasonal_item.unwrap().has_socket);
