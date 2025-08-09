@@ -6,7 +6,7 @@ use std::{fs::OpenOptions, io::{self, BufWriter}};
 use checker::{check_player::PlayerData, raid_questions::{QuestionState, RaidCheckQuestions}, raid_sheet::RaidSheet};
 use chrono::{DateTime, TimeZone, Utc};
 use config::{expansion_config::ExpansionsConfig, settings::Settings};
-use egui::{TopBottomPanel, Window};
+use egui::{TopBottomPanel, Visuals, Window};
 pub mod config;
 pub mod checker;
 use signups_ui::SignUpsUI;
@@ -157,6 +157,7 @@ impl eframe::App for RaidHelperCheckerApp {
         if self.win_title_change {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.win_title.clone()));
             self.win_title_change = false;
+            ctx.set_visuals(Visuals::dark());
         }
 
         if self.ask_update {
