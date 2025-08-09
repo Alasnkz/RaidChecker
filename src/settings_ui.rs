@@ -116,6 +116,16 @@ impl SettingsUi {
                             let has_greater_socket_item = (proper_item.is_some() && !proper_item.unwrap().greater_socket_item.is_empty()) ||
                                 (seasonal_item.is_some() && !seasonal_item.unwrap().greater_socket_item.is_empty());
 
+                            let max_sockets = if seasonal_item.is_some() {
+                                seasonal_item.unwrap().max_sockets
+                            } else if proper_item.is_some() {
+                                proper_item.unwrap().max_sockets
+                            } else if agnostic_item.is_some() {
+                                agnostic_item.unwrap().max_sockets
+                            } else {
+                                0
+                            };
+
                             if !has_enchant && !has_expansional_enchant && item.0.require_slot {
                                 println!("{} has a enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
                                 item.0.require_slot = false;
@@ -167,7 +177,7 @@ impl SettingsUi {
                                 }
                                 
                                 if has_socket {
-                                    ui.add(egui::Slider::new(&mut item.0.require_sockets, 0..=10).text("Sockets required"));
+                                    ui.add(egui::Slider::new(&mut item.0.require_sockets, 0..=max_sockets).text("Sockets required"));
                                     if has_greater_socket_item {
                                         ui.checkbox(&mut item.0.require_greater_socket, "Require greater socket item").on_hover_text("Checks to see if the item has a \"greater\" gem/fibre socketed into it, notable for TWW S3 Reshii Wraps fibers.");
                                     }

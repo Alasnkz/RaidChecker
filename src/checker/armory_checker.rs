@@ -777,9 +777,8 @@ impl ArmoryChecker {
             if missing_buff_levels.len() > 0 {
                 let first_renown = missing_buff_levels.first().unwrap().clone();
                 let diff = first_renown - renown;
-                println!("{} {}", diff, reputation.renown_level_value);
                 let possible = (diff as f32 * reputation.renown_level_value as f32 / reputation.max_renown_value_weekly as f32) <= 1.0;
-                info!("Missing buff levels: {:?}, possible to get a buff with 5k backup: {}", missing_buff_levels, possible);
+                info!("Missing buff levels: {:?}, possible to get a buff with {} backup: {}", missing_buff_levels, reputation.max_renown_value_weekly, possible);
                 return (missing_buff_levels.len() as i32, possible, reputation.buff_size, reputation.max_renown_value_weekly);
             } else {
                 info!("No missing buff levels found, current renown: {}, max renown: {}", renown, max_renown);
