@@ -435,18 +435,17 @@ impl ArmoryChecker {
             }
         }
 
-        if !bad_str.is_empty() {
-            return bad_str;
-        }
-
         if options.0.require_greater_socket == true {
             if slot.sockets.is_some() && slot.sockets.clone().unwrap().iter().find(|x| x._item.is_some() && enchants.greater_socket_item.iter().find(|y| x._item.as_ref().unwrap()._id as i32 == **y).is_some()).is_some() {
-                return String::default();
+                return bad_str;
             } else {
+                if bad_str != "" {
+                    bad_str += "\n\t";
+                }
                 return format!("{} does not have a greater gem socketed!", slot_name);
             }
         }
-        return String::default();
+        return bad_str;
     }
 
     fn gear_socket_seasonal_check(slot: &CharacterGear, options: &EnchantmentSlotSetting, seasonal_item: (ExpansionEnchants, &str)) -> String {
@@ -468,18 +467,17 @@ impl ArmoryChecker {
             }
         }
 
-        if !bad_str.is_empty() {
-            return bad_str;
-        }
-
         if options.require_greater_socket == true {
             if slot.sockets.is_some() && slot.sockets.clone().unwrap().iter().find(|x| x._item.is_some() && seasonal_item.0.greater_socket_item.iter().find(|y| x._item.as_ref().unwrap()._id as i32 == **y).is_some()).is_some() {
-                return String::default();
+                return bad_str;
             } else {
-                return format!("{} does not have a greater gem socketed!", slot_name);
+                if bad_str != "" {
+                    bad_str += "\n\t";
+                }
+                return format!("{}{} does not have a greater gem socketed!", bad_str, slot_name);
             }
         }
-        return String::default();
+        return bad_str;
     }
 
     fn check_gear_socket(expansion: &Expansions, slot: &CharacterGear, enchants: &ExpansionEnchants, settings: &Settings) -> String {
