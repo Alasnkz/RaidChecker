@@ -6,7 +6,7 @@ use reqwest::blocking::Client;
 use serde::Deserialize;
 use tracing::{error, info, warn};
 
-use crate::config::{self, expansion_config::{ExpansionEnchants, Expansions}, settings::Settings};
+use crate::config::{self, expansion_config::{ExpansionEnchants, Expansions}, settings::{EnchantmentSlotSetting, Settings}};
 
 #[allow(dead_code)]
 pub struct ArmoryChecker {}
@@ -334,7 +334,7 @@ impl ArmoryChecker {
                 }
 
                 // Check for sockets (if needed)
-                let str = Self::check_gear_socket( &gear.1, enchantment_slot.unwrap(), &settings);
+                let str = Self::check_gear_socket(&expansion, &gear.1, enchantment_slot.unwrap(), &settings);
                 if str.len() > 0 {
                     info!("{str}");
                     socket_vec.push(str);
@@ -416,33 +416,105 @@ impl ArmoryChecker {
         return String::default();
     }
     
-    fn check_gear_socket(slot: &CharacterGear, enchants: &ExpansionEnchants, settings: &Settings) -> String {
+    fn gear_socket_check(slot: &CharacterGear, enchants: &ExpansionEnchants, options: (EnchantmentSlotSetting, &str)) -> String {
+        let required_sockets = options.0.require_sockets;
+        let mut bad_str = "".to_string();
+        let sockets = slot.sockets.as_ref().map_or(0, |s| s.len()) as i32;
+        let slot_name = slot.inventory_type.clone().gear_type.to_lowercase();
+
+        if required_sockets > sockets {
+            bad_str = format!("{} is missing {} socket{}", slot_name, required_sockets - sockets, if required_sockets - sockets > 1 { "s" } else { "" });
+        }
+        if slot.sockets.is_some() {    
+            let count = slot.sockets.iter().flatten().filter(|s| s._item.is_some()).count() as i32;
+            if count < sockets {
+                if bad_str != "" {
+                    bad_str += "\n\t";
+                }
+                bad_str = format!("{}{} has {} socket{} that are not filled with a gem", bad_str, slot_name, sockets - count, if sockets - count > 1 { "s" } else { "" });
+            }
+        }
+
+        if !bad_str.is_empty() {
+            return bad_str;
+        }
+
+        if options.0.require_greater_socket == true {
+            if slot.sockets.is_some() && slot.sockets.clone().unwrap().iter().find(|x| x._item.is_some() && enchants.greater_socket_item.iter().find(|y| x._item.as_ref().unwrap()._id as i32 == **y).is_some()).is_some() {
+                return String::default();
+            } else {
+                return format!("{} does not have a greater gem socketed!", slot_name);
+            }
+        }
+        return String::default();
+    }
+
+    fn gear_socket_seasonal_check(slot: &CharacterGear, options: &EnchantmentSlotSetting, seasonal_item: (ExpansionEnchants, &str)) -> String {
+        let mut bad_str = "".to_string();
+        let sockets = slot.sockets.as_ref().map_or(0, |s| s.len()) as i32;
+        let slot_name = slot.inventory_type.clone().gear_type.to_lowercase();
+        let required_sockets = options.require_sockets;
+
+        if required_sockets > sockets {
+            bad_str = format!("{} is missing {} socket{}", slot_name, required_sockets - sockets, if required_sockets - sockets > 1 { "s" } else { "" });
+        }
+        if slot.sockets.is_some() {    
+            let count = slot.sockets.iter().flatten().filter(|s| s._item.is_some()).count() as i32;
+            if count < sockets {
+                if bad_str != "" {
+                    bad_str += "\n\t";
+                }
+                bad_str = format!("{}{} has {} socket{} that are not filled with a gem", bad_str, slot_name, sockets - count, if sockets - count > 1 { "s" } else { "" });
+            }
+        }
+
+        if !bad_str.is_empty() {
+            return bad_str;
+        }
+
+        if options.require_greater_socket == true {
+            if slot.sockets.is_some() && slot.sockets.clone().unwrap().iter().find(|x| x._item.is_some() && seasonal_item.0.greater_socket_item.iter().find(|y| x._item.as_ref().unwrap()._id as i32 == **y).is_some()).is_some() {
+                return String::default();
+            } else {
+                return format!("{} does not have a greater gem socketed!", slot_name);
+            }
+        }
+        return String::default();
+    }
+
+    fn check_gear_socket(expansion: &Expansions, slot: &CharacterGear, enchants: &ExpansionEnchants, settings: &Settings) -> String {
         info!("Checking gear socket for slot: {}", enchants.slot);
         let binding = settings.enchantments.as_array();
         let enchant_options_opt = binding.iter().find(|x| {
             x.1 == enchants.slot
         });
 
+        let binding = expansion.latest_season.clone().unwrap();
+        let _binding = Vec::new();
+        let seasonal_item_opt: Option<&ExpansionEnchants> = binding.seasonal_gear.as_ref().unwrap_or(&_binding).iter().find(|x| {
+            x.slot == enchants.slot  || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
+        });
+
+        let mut bad_retval = String::default();
+        
+
         if let Some(enchant_options) = enchant_options_opt {
-            let sockets = slot.sockets.as_ref().map_or(0, |s| s.len()) as i32;
-            let slot_name = slot.inventory_type.clone().gear_type.to_lowercase();
-            let required_sockets = enchant_options.0.require_sockets;
-            if enchant_options_opt.is_some() && required_sockets > sockets {
-                return format!("{} is missing {} socket{}", slot_name, required_sockets - sockets, if required_sockets - sockets > 1 { "s" } else { "" });
-            } else if enchant_options_opt.is_some(){
-                let count = slot.sockets.iter().flatten().filter(|s| s._item.is_some()).count() as i32;
-                if count < enchant_options_opt.unwrap().0.require_sockets {
-                    return format!("{} has {} socket{} that are not filled with a gem", slot_name, enchant_options_opt.unwrap().0.require_sockets - count, if count > 1 { "s" } else { "" });
+            if let Some(seasonal_item) = seasonal_item_opt {
+                info!("Checking socket for seasonal slot: {}", enchants.slot);
+                if seasonal_item.has_socket == true {
+                    let seasonal_sockets = seasonal_item.max_sockets;
+                    if seasonal_sockets > 0 {
+                        bad_retval = Self::gear_socket_seasonal_check(slot, &enchant_options.0, (seasonal_item.clone(), enchants.slot.as_str()));
+                        if bad_retval.len() > 0 {
+                            return bad_retval;
+                        }
+                    }
                 }
             }
 
-            if enchant_options.0.require_greater_socket == true {
-                if slot.sockets.is_some() && slot.sockets.clone().unwrap().iter().find(|x| x._item.is_some() && enchants.greater_socket_item.iter().find(|y| x._item.as_ref().unwrap()._id as i32 == **y).is_some()).is_some() {
-                    return String::default();
-                } else {
-                    return format!("{} does not have a greater gem socketed!", slot_name);
-                }
-            }
+            if enchants.has_socket == true {
+                return Self::gear_socket_check(slot, enchants, (enchant_options.0.clone(), enchants.slot.as_str()));
+            }  
         }
         
         return String::default();
