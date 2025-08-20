@@ -119,8 +119,27 @@ impl Default for RaidHelperCheckerApp {
 
 impl RaidHelperCheckerApp{
     pub fn reload_data(&mut self) {
-        self.expansions = ExpansionsConfig::read_or_create("expansions.json").unwrap();
-        self.expansions.latest_expansion = Some(self.expansions.expansions.iter().find(|x| x.identifier == self.expansions.latest_expansion_identifier).unwrap_or(&Expansions::default()).clone());
+        self.expansions = ExpansionsConfig::read_or_create("expansions.json").unwrap();  
+        let mut expansion_ts_start = 0;
+        let mut expansion_identifier = String::new();
+        for expansion in self.expansions.expansions.iter() {
+            if expansion.expansion_start >= expansion_ts_start {
+                if expansion.expansion_start != 0 {
+                    let expansion_start: DateTime<Utc> = Utc.timestamp_opt(expansion.expansion_start, 0).unwrap();
+                    let now: DateTime<Utc> = Utc::now();
+                    if expansion_start <= now {
+                        expansion_identifier = expansion.identifier.clone();
+                        expansion_ts_start = expansion.expansion_start;
+                    } else {
+                        info!("{} has not started yet, ignoring. Will activate on {}", expansion.name, expansion_start.format("%A, %B %d %Y").to_string());
+                    }
+                } else if expansion.expansion_start >= 0 && expansion_ts_start == 0 {
+                    expansion_identifier = expansion.identifier.clone();
+                    expansion_ts_start = expansion.expansion_start;
+                }
+            }
+        }
+        self.expansions.latest_expansion = Some(self.expansions.expansions.iter().find(|x| x.identifier == expansion_identifier).unwrap_or(&Expansions::default()).clone());
 
         let mut season_ts_start = 0;
         let mut season_id = String::new();
@@ -142,7 +161,7 @@ impl RaidHelperCheckerApp{
             }
         }
         self.expansions.latest_expansion.as_mut().unwrap().latest_season = self.expansions.latest_expansion.as_ref().unwrap().seasons.iter().find(|x| x.seasonal_identifier == season_id).cloned();
-        self.win_title = format!("Raid Checker ({} {})", self.expansions.latest_expansion.as_ref().unwrap().identifier, self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap_or(&ExpansionSeasons::default()).seasonal_identifier);
+        self.win_title = format!("Raid Checker ({} {})", self.expansions.latest_expansion.as_ref().unwrap().name, self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap_or(&ExpansionSeasons::default()).seasonal_identifier);
         self.win_title_change = true;
         self.settings.raid_id = if self.settings.raid_id == -1 {
             self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id

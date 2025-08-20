@@ -1,7 +1,7 @@
 {
   "rhcu_version": "1.0.3",
   "modified": 1755098265,
-  "latest_expansion_identifier": "TWW",
+  "latest_expansion_identifier": "MN",
   "agnostic_gear_enchants": [
     {
       "slot": "weapon",
@@ -24,6 +24,7 @@
       "name": "War Within",
       "identifier": "TWW",
       "reputation_slug": "the-war-within",
+      "expansion_start": 1,
       "gear_embelishment_bonus_id": 8960,
       "gear_enchants": [
         {
@@ -470,6 +471,7 @@
     {
       "name": "Midnight",
       "identifier": "MN",
+      "expansion_start": 1771396087,
       "reputation_slug": "midnight",
       "gear_embelishment_bonus_id": 0,
       "gear_enchants": [],

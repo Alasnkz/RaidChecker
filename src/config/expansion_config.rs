@@ -95,7 +95,8 @@ pub struct Expansions {
     pub gear_embelishment_bonus_id: i32,
     pub gear_enchants: Vec<ExpansionEnchants>,
     pub seasons: Vec<ExpansionSeasons>,
-    
+    #[serde(default="default_i64")]
+    pub expansion_start: i64,
     #[serde(skip)]
     pub latest_season: Option<ExpansionSeasons>,
 }
@@ -113,6 +114,7 @@ impl Default for Expansions {
             name: "Unknown".to_owned(),
             identifier: "Unknown".to_owned(),
             reputation_slug: "Unknown".to_owned(),
+            expansion_start: 0,
             gear_embelishment_bonus_id: -1,
             gear_enchants: Vec::new(),
             seasons: Vec::new(),
