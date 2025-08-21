@@ -6,7 +6,7 @@ use reqwest::blocking::Client;
 use serde::Deserialize;
 use tracing::{error, info, warn};
 
-use crate::config::{self, expansion_config::{ExpansionEnchants, Expansions}, settings::{EnchantmentSlotSetting, RequiredRaid, Settings}};
+use crate::config::{self, expansion_config::{ExpansionEnchants, Expansions, ExpansionsConfig}, settings::{EnchantmentSlotSetting, RequiredRaid, Settings}};
 
 #[allow(dead_code)]
 pub struct ArmoryChecker {}
@@ -369,7 +369,7 @@ impl ArmoryChecker {
                     socket_vec.push(str);
                 }
 
-                let special = Self::check_special_item(&expansion, &gear.1, enchantment_slot.unwrap(), &settings);
+                let special = Self::check_special_item(&expansions, &gear.1, enchantment_slot.unwrap(), &settings);
                 if special.len() > 0 {
                     info!("{special}");
                     special_item.push(special);
@@ -547,7 +547,7 @@ impl ArmoryChecker {
         return String::default();
     }
 
-    fn check_special_item(expansion: &Expansions, slot: &CharacterGear, enchants: &ExpansionEnchants, settings: &Settings) -> String {
+    fn check_special_item(expansions: &ExpansionsConfig, slot: &CharacterGear, enchants: &ExpansionEnchants, settings: &Settings) -> String {
         info!("Checking special item for slot: {}", enchants.slot);
         let binding = settings.enchantments.as_array();
         let enchant_options_opt = binding.iter().find(|x| {
@@ -555,25 +555,56 @@ impl ArmoryChecker {
         });
 
         let binding = Vec::new();
-        let seasonal_item = expansion.latest_season.as_ref().unwrap().seasonal_gear.as_ref().unwrap_or(&binding).iter().find(|x| {
+        
+        let agnostic_item = expansions.agnostic_gear_enchants.iter().find(|x| {
+            x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
+        });
+
+        let expansion_item = expansions.latest_expansion.as_ref().unwrap().gear_enchants.iter().find(|x| {
+            x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
+        });
+
+        let seasonal_item = expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_gear.as_ref().unwrap_or(&binding).iter().find(|x| {
             x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
         });
 
         if let Some(enchant_options) = enchant_options_opt {
-
             let slot_name = slot.inventory_type.clone().gear_type.to_lowercase();
-            if enchant_options.0.require_special_item == true && seasonal_item.is_some() && seasonal_item.unwrap().special_item_id.is_some() {
-                info!("Checking seasonal item for slot: {}", enchants.slot);
-                let special =  seasonal_item.unwrap().special_item_id.clone().unwrap();
-                let found = special.iter().find(|&&x| {
-                    x == slot.id
-                });
+            if enchant_options.0.require_special_item == true {
+                if seasonal_item.is_some() && seasonal_item.unwrap().special_item_id.is_some() {
+                    info!("Checking seasonal item for slot: {}", enchants.slot);
+                    let special =  seasonal_item.unwrap().special_item_id.clone().unwrap();
+                    let found = special.iter().find(|&&x| {
+                        x == slot.id
+                    });
 
-                if found.is_none() {
-                    return format!("{} does not have a special item!", slot_name);
+                    if found.is_none() {
+                        return format!("{} does not have a seasonal special item!", slot_name);
+                    }
+                }
+                else if expansion_item.is_some() && expansion_item.unwrap().special_item_id.is_some() {
+                    info!("Checking special expansion item for slot: {}", enchants.slot);
+                    let special =  expansion_item.unwrap().special_item_id.clone().unwrap();
+                    let found = special.iter().find(|&&x| {
+                        x == slot.id
+                    });
+
+                    if found.is_none() {
+                        return format!("{} does not have an expansion special item!", slot_name);
+                    }
+                }
+                else if agnostic_item.is_some() && agnostic_item.unwrap().special_item_id.is_some() {
+                    info!("Checking special expansion item for slot: {}", enchants.slot);
+                    let special =  agnostic_item.unwrap().special_item_id.clone().unwrap();
+                    let found = special.iter().find(|&&x| {
+                        x == slot.id
+                    });
+
+                    if found.is_none() {
+                        return format!("{} does not have an agnostic special item!", slot_name);
+                    }
                 }
             }
-            
         }
         
         return String::default();
