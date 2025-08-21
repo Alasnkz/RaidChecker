@@ -205,6 +205,7 @@ pub enum AOTCStatus {
     Account,
     Character,
     CuttingEdge(bool, bool, bool), // Account, Character, Charcter Heroic Kill
+    Skipped,
     Error
 }
 
@@ -709,9 +710,19 @@ impl ArmoryChecker {
                 info!("Checking category: {}", category.1.name);
                 if category.1.id == "raids" {
                     info!("Found raids category in achievements.");
+                    for raid_check_id in raid_saved_check.iter() {
+                        let raid = expansions.latest_expansion.as_ref().unwrap().find_raid_by_id(*raid_check_id.0);
+                        if raid.is_some() {
+                            if raid.unwrap().aotc_achievement_id == 0 && raid.unwrap().ce_achievement_id == 0 {
+                                info!("Skipping raid ID: {} as it has no AOTC/CE achievements.", raid.unwrap().id);
+                                aotc_ce_status.insert(*raid_check_id.0, (raid.unwrap().identifier.clone(), AOTCStatus::Skipped));
+                            }
+                        }
+                    }
                     for achievement in category.1.achievements {
                         let mut raid_name = String::default();
                         info!("Checking achievement: {} (ID: {})", achievement.name, achievement.id);
+
                         let selected_raid = raid_saved_check.iter().find(|x| { 
                             let raid = expansions.latest_expansion.as_ref().unwrap().find_raid_by_id(*x.0).unwrap();
                             raid_name = raid.identifier.clone();

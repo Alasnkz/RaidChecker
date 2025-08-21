@@ -399,7 +399,7 @@ impl SignUpsUI {
             ui.label("");
         }
 
-        for (raid_id, (raid_name, aotc_status)) in player.aotc_status.iter() {
+        for (_, (raid_name, aotc_status)) in player.aotc_status.iter() {
             let mut string = String::new();
             match aotc_status {
                 AOTCStatus::Account => {
@@ -431,11 +431,18 @@ impl SignUpsUI {
                     string = format!("{} does not have {raid_name} AOTC.", player.name.clone());
                 },
 
+                AOTCStatus::Skipped => {
+                    string = format!("");
+                },
                 _ => { 
                     string = format!("Unknown {raid_name} AOTC status.");
                 }
             }
-            ui.label(string);
+
+            if string.len() > 0 {
+                ui.label(string);
+            }
+            
         }
 
         ui.label("");
