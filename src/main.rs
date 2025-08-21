@@ -163,11 +163,6 @@ impl RaidHelperCheckerApp{
         self.expansions.latest_expansion.as_mut().unwrap().latest_season = self.expansions.latest_expansion.as_ref().unwrap().seasons.iter().find(|x| x.seasonal_identifier == season_id).cloned();
         self.win_title = format!("Raid Checker ({} {})", self.expansions.latest_expansion.as_ref().unwrap().name, self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap_or(&ExpansionSeasons::default()).seasonal_identifier);
         self.win_title_change = true;
-        self.settings.raid_id = if self.settings.raid_id == -1 {
-            self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
-        } else {
-            self.settings.raid_id
-        };
     }
 }
 
@@ -262,8 +257,8 @@ impl eframe::App for RaidHelperCheckerApp {
             if self.raid_questions.state != checker::raid_questions::QuestionState::None {
                 let ret = self.raid_questions.ask_questions(ctx, &self.expansions, None, None);
                 if ret.is_some() {
-                    let (url, raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty, player_only) = ret.unwrap();
-                    self.raid_sheet.init(url, player_only.clone(), self.settings.clone(), self.expansions.clone(), self.realms.clone(), raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty, self.last_raid.clone());
+                    let (url, boss_kills, player_only) = ret.unwrap();
+                    self.raid_sheet.init(url, player_only.clone(), self.settings.clone(), self.expansions.clone(), self.realms.clone(), boss_kills, self.last_raid.clone());
 
                     if player_only != PlayerOnlyCheckType::Player && player_only != PlayerOnlyCheckType::None {
                         self.raid_questions.raid_helper_url = String::new();

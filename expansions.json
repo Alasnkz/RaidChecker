@@ -268,7 +268,7 @@
 
       "seasons": [
         {
-          "seasonal_identifier": "S1",
+          "seasonal_identifier": "Season 1",
           "raids": [
             {
               "identifier": "Nerub-ar Palace",
@@ -308,7 +308,7 @@
         },
 
         {
-          "seasonal_identifier": "S2",
+          "seasonal_identifier": "Season 2",
           "raids": [
             {
               "identifier": "Liberation of Undermine",
@@ -399,7 +399,7 @@
         },
 
         {
-          "seasonal_identifier": "S3",
+          "seasonal_identifier": "Season 3",
           "season_start": 1754452800,
           "raids": [
             {
@@ -471,14 +471,115 @@
     {
       "name": "Midnight",
       "identifier": "MN",
-      "expansion_start": 1771396087,
+      "expansion_start": 9999999999,
       "reputation_slug": "midnight",
       "gear_embelishment_bonus_id": 0,
       "gear_enchants": [],
       "seasons": [
         {
-          "seasonal_identifier": "S1",
-          "raids": [],
+          "seasonal_identifier": "Season 1",
+          "raids": [
+            {
+              "identifier": "The Voidspire",
+              "difficulty": [
+                {
+                  "difficulty_name": "Looking for Raid",
+                  "id": 0
+                },
+                {
+                  "difficulty_name": "Normal",
+                  "id": 1
+                },
+                {
+                  "difficulty_name": "Heroic",
+                  "id": 2
+                },
+                {
+                  "difficulty_name": "Mythic",
+                  "id": 3
+                }
+              ],
+              "id": 0,
+              "boss_names": [
+                "Unknown Boss Name 1",
+                "Unknown Boss Name 2",
+                "Unknown Boss Name 3",
+                "Unknown Boss Name 4",
+                "Unknown Boss Name 5",
+                "Unknown Boss Name 6"
+              ],
+              "aotc_achievement_id": 41624,
+              "ce_achievement_id": 41625
+            },
+
+            {
+              "identifier": "The Dreamrift",
+              "difficulty": [
+                {
+                  "difficulty_name": "Looking for Raid",
+                  "id": 0
+                },
+                {
+                  "difficulty_name": "Normal",
+                  "id": 1
+                },
+                {
+                  "difficulty_name": "Heroic",
+                  "id": 2
+                },
+                {
+                  "difficulty_name": "Mythic",
+                  "id": 3
+                }
+              ],
+              "id": 1,
+              "boss_names": [
+                "Unknown Boss Name"
+              ],
+              "aotc_achievement_id": 41624,
+              "ce_achievement_id": 41625,
+
+              "reputation": {
+                "raid_rep_slug": "manaforge-vandals",
+                "raid_buff_renowns": [
+                  4, 7, 10, 13, 15
+                ],
+                "renown_start": 1755057600,
+                "max_renown_value_weekly": 5000,
+                "renown_level_value": 2500,
+                "buff_size": 3
+              }
+            },
+
+            {
+              "identifier": "March on Quel'Danas",
+              "difficulty": [
+                {
+                  "difficulty_name": "Looking for Raid",
+                  "id": 0
+                },
+                {
+                  "difficulty_name": "Normal",
+                  "id": 1
+                },
+                {
+                  "difficulty_name": "Heroic",
+                  "id": 2
+                },
+                {
+                  "difficulty_name": "Mythic",
+                  "id": 3
+                }
+              ],
+              "id": 2,
+              "boss_names": [
+                "Unknown Boss Name 1",
+                "Unknown Boss Name 2"
+              ],
+              "aotc_achievement_id": 0,
+              "ce_achievement_id": 0
+            }
+          ],
           "season_start": 0
         }
       ]

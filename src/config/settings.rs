@@ -1,4 +1,4 @@
-use std::{fs::{self, File}, io::{self, Write}, path::Path};
+use std::{collections::BTreeMap, fs::{self, File}, io::{self, Write}, path::Path};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct EnchantmentSlotSetting {
@@ -127,13 +127,22 @@ impl Default for EnchantmentSlots {
     }
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct RequiredRaidDifficulty {
+    pub boss_ids: Vec<i32>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct RequiredRaid {
+    pub id: i32,
+    pub difficulty: BTreeMap<i32, RequiredRaidDifficulty>
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Settings {
     pub average_ilvl: i32,
     pub embelishments: i32,
-    pub raid_id: i32,
-    pub raid_difficulty: i32,
-    pub raid_difficulty_boss_id_kills: Vec<i32>,
+    pub required_raids: BTreeMap<i32, RequiredRaid>,
     pub enchantments: EnchantmentSlots,
     pub skip_colour: Option<[u8; 4]>,
     pub ilvl_colour: Option<[u8; 4]>,
@@ -164,9 +173,7 @@ impl Default for Settings {
         Self {
             average_ilvl: 0,
             embelishments: 0,
-            raid_id: -1,
-            raid_difficulty: 0,
-            raid_difficulty_boss_id_kills: Vec::new(),
+            required_raids: BTreeMap::new(),
             enchantments: EnchantmentSlots::default(),
             skip_colour: Some([0xFF, 0xFF, 0x0, 0xFF]),
             ilvl_colour: Some([0x8B, 0x0, 0x0, 0xFF]),

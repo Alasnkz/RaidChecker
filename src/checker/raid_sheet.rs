@@ -1,8 +1,8 @@
 use reqwest::blocking::Client;
 use tracing::info;
-use std::{sync::mpsc::{self, Receiver, Sender}, thread};
+use std::{collections::BTreeMap, sync::mpsc::{self, Receiver, Sender}, thread};
 
-use crate::config::{self, last_raid::{LastRaid}};
+use crate::config::{self, last_raid::LastRaid, settings::RequiredRaid};
 
 use super::check_player::{PlayerChecker, PlayerData};
 
@@ -146,7 +146,7 @@ impl RaidSheet {
     }
 
     pub fn init(&mut self, url: String, is_player_only: PlayerOnlyCheckType, settings: config::settings::Settings, expansions: config::expansion_config::ExpansionsConfig, realms: config::realms::RealmJson,
-        raid_id: i32, raid_difficulty: i32, boss_kills: Vec<i32>, check_saved_prev_difficulty: bool, mut last_raid: LastRaid)
+        raid_saved_check: BTreeMap<i32, RequiredRaid>, mut last_raid: LastRaid)
     {
         let (uis, thread_reciever) = mpsc::channel();
         let (thread_sender, uir) = mpsc::channel();
@@ -160,7 +160,7 @@ impl RaidSheet {
                 let mut player = Player::default();
                 player.name = url.clone();
 
-                let player_data = PlayerChecker::check_player(&player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, raid_id, raid_difficulty, &boss_kills, check_saved_prev_difficulty, None);
+                let player_data = PlayerChecker::check_player(&player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, None);
                 if player_data.is_some() {
                     if let PlayerOnlyCheckType::PlayerFromSheet(data) = is_player_only {
                         let _ = thread_sender.send(RaidHelperCheckerStatus::PlayerResultSheet(player_data.unwrap(), data));                        
@@ -218,7 +218,7 @@ impl RaidSheet {
                 };
 
                 let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("{} {}/{}", player.name, count, viable.len())));
-                let player_data = PlayerChecker::check_player(player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, raid_id, raid_difficulty, &boss_kills, check_saved_prev_difficulty, player_url);
+                let player_data = PlayerChecker::check_player(player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, player_url);
                 if player_data.is_some() {
                     vec_player.push(player_data.unwrap());
                 } else {
@@ -233,7 +233,7 @@ impl RaidSheet {
                         num_embelishments: -1,
                         ilvl: 0,
                         saved_bosses: Vec::new(),
-                        aotc_status: super::armory_checker::AOTCStatus::None,
+                        aotc_status: BTreeMap::new(),
                         buff_status: (0, false, 0, 0),
                         skip_reason: Some("Could not find player".to_owned()),
                         armory_url: "".to_owned(),

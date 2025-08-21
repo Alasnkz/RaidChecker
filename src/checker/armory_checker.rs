@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDateTime, TimeZone, Utc, Weekday};
 use regex::Regex;
@@ -6,7 +6,7 @@ use reqwest::blocking::Client;
 use serde::Deserialize;
 use tracing::{error, info, warn};
 
-use crate::config::{self, expansion_config::{ExpansionEnchants, Expansions}, settings::{EnchantmentSlotSetting, Settings}};
+use crate::config::{self, expansion_config::{ExpansionEnchants, Expansions}, settings::{EnchantmentSlotSetting, RequiredRaid, Settings}};
 
 #[allow(dead_code)]
 pub struct ArmoryChecker {}
@@ -106,7 +106,8 @@ pub struct ArmoryRaidDifficulty {
 #[derive(serde::Deserialize,Clone)]
 #[allow(dead_code)]
 pub struct ArmoryRaids {
-    difficulties: Vec<ArmoryRaidDifficulty>
+    difficulties: Vec<ArmoryRaidDifficulty>,
+    name: String
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -239,38 +240,66 @@ impl ArmoryChecker {
         return None;
     }
 
-    pub fn check_raid_boss_kills(armory: &ArmoryCharacterResponse, settings: &config::settings::Settings) -> Vec<String> {
-        info!("Checking raid boss kills for raid ID: {} and difficulty: {}", settings.raid_id, settings.raid_difficulty);
+    pub fn check_raid_boss_kills(armory: &ArmoryCharacterResponse, settings: &config::settings::Settings) -> Vec<(String, String)> {
+        info!("Checking raid boss kills for raid IDs: {:?}", settings.required_raids);
         let mut unkilled_bosses = Vec::new();
-        let raid_check = armory.summary.raids.get(settings.raid_id as usize);
+        
+        if armory.summary.raids.is_empty() {
+            warn!("No raid data found for character");
+            return unkilled_bosses;
+        }
 
-        if let Some(raid) = raid_check {
+        for check_raid_ids in settings.required_raids.iter() {
             let mut seen = HashSet::new();
-            let unique_difficulties: Vec<_> = raid.difficulties
+            let mut unkilled_raid_bosses = BTreeMap::new();
+            let raid_check: Option<&ArmoryRaids> = armory.summary.raids.get(*check_raid_ids.0 as usize);
+            if raid_check.is_none() {
+                warn!("No raid data found for raid ID: {}", check_raid_ids.0);
+                for check_raid_difficulty in check_raid_ids.1.difficulty.iter() {
+                    if check_raid_difficulty.1.boss_ids.is_empty() {
+                        continue;
+                    }
+
+                    todo!("Handle missing raid data stuff.");
+                }
+                continue;
+            }
+            let raid_check = raid_check.unwrap();
+            let raid_id = check_raid_ids.0;
+            let unique_difficulties: Vec<_> = raid_check.difficulties
                 .iter()
                 .filter(|x| seen.insert(*x))
                 .cloned()
                 .collect();
-            let difficulty_option = unique_difficulties.get(settings.raid_difficulty as usize);
+            
 
-            if let Some(raid_difficulty) = difficulty_option {
-                let mut raid_boss_id = 0;
-                for boss in raid_difficulty.bosses.clone() {
-                    if settings.raid_difficulty_boss_id_kills.iter().find(|x| **x == raid_boss_id).is_some() {
+            for check_raid_difficulty in check_raid_ids.1.difficulty.iter() {
+                let difficulty_option = unique_difficulties.get(*check_raid_difficulty.0 as usize);
+                if check_raid_difficulty.1.boss_ids.is_empty() || difficulty_option.is_none() {
+                    continue;
+                }
+                let raid_difficulty = difficulty_option.unwrap();
+                let mut boss_id = 0;
+                for boss in raid_difficulty.bosses.iter() {
+                    if check_raid_difficulty.1.boss_ids.iter().find(|x| **x == boss_id).is_some() {
                         if boss.kill_count == 0 {
-                            unkilled_bosses.push(format!("{} ({})", boss.name, raid_difficulty.name));
+                            if unkilled_raid_bosses.contains_key(&boss_id) {
+                                let existing: &mut (String, Vec<String>) = unkilled_raid_bosses.get_mut(&boss_id).unwrap();
+                                existing.1.push(raid_difficulty.name.clone());
+                            } else {
+                                unkilled_raid_bosses.insert(boss_id, (boss.name.clone(), vec![raid_difficulty.name.clone()]));
+                            }                            
                         }
                     }
-                    raid_boss_id += 1;
+                    boss_id += 1;
                 }
-            } else {
-                warn!("Could not find difficulty for raid ID: {} and difficulty: {}", settings.raid_id, settings.raid_difficulty);
             }
-        } else {
-            warn!("Could not find raid with ID: {}", settings.raid_id);
+            for (_, (boss_name, difficulties)) in unkilled_raid_bosses.iter() {
+                let difficulty_str = difficulties.join(", ");
+                unkilled_bosses.push((raid_check.name.clone(), format!("{} ({})", boss_name, difficulty_str)));
+            }
         }
-
-        info!("Unkilled bosses for raid ID {} and difficulty {}: {:?}", settings.raid_id, settings.raid_difficulty, unkilled_bosses);
+        info!("Unkilled bosses found {:?}", unkilled_bosses);
         unkilled_bosses
     }
 
@@ -564,122 +593,70 @@ impl ArmoryChecker {
         wednesday_4am.and_utc().timestamp_millis()
     }
 
-    fn check_raid_kills(armory: &ArmoryCharacterResponse, raid_id: i32, raid_difficulty: i32, boss_kills: &Vec<i32>) -> (Vec<ArmoryRaidBosses>, String) {
-        let raid_summary = armory.summary.raids.get(raid_id as usize);
-        if raid_summary.is_none() {
-            return (Vec::new(), String::default())
-        }
-
-        let mut seen = HashSet::new();
-        let unique_difficulties: Vec<_> = raid_summary.unwrap().difficulties
-            .iter()
-            .filter(|x| seen.insert(*x))
-            .cloned()
-            .collect();
-        let raid_difficulty = unique_difficulties.get(raid_difficulty as usize);
-
-        if raid_summary.is_none() {
-            return (Vec::new(), String::default())
-        }
-
-        let selected_boss_data: Vec<_> = raid_difficulty.unwrap()
-            .bosses
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| boss_kills.contains(&(*index as i32)))
-            .map(|(_, boss_data)| boss_data.clone())
-            .collect();
-
+    pub fn check_saved_bosses(armory: &ArmoryCharacterResponse, raid_saved_check: &BTreeMap<i32, RequiredRaid>) -> Vec<(String, String)> {
         let reset = Self::get_wednesday_reset_timestamp();
-        let mut saved_bosses = Vec::new();
-        for boss in selected_boss_data {
-            if boss.last_timestamp.is_some() {
-                if boss.last_timestamp.unwrap() > reset.try_into().unwrap() {
-                    saved_bosses.push(boss.clone());
+        let mut killed_bosses = Vec::new();
+        for check_raid_ids in raid_saved_check.iter() {
+            let mut seen = HashSet::new();
+            let mut killed_raid_bosses = BTreeMap::new();
+            let raid_check: Option<&ArmoryRaids> = armory.summary.raids.get(*check_raid_ids.0 as usize);
+            if raid_check.is_none() {
+                warn!("No raid data found for raid ID: {}", check_raid_ids.0);
+                for check_raid_difficulty in check_raid_ids.1.difficulty.iter() {
+                    if check_raid_difficulty.1.boss_ids.is_empty() {
+                        continue;
+                    }
+
+                    todo!("Handle missing raid data stuff.");
+                }
+                continue;
+            }
+
+            let raid_check = raid_check.unwrap();
+            let raid_id = check_raid_ids.0;
+            let unique_difficulties: Vec<_> = raid_check.difficulties
+                .iter()
+                .filter(|x| seen.insert(*x))
+                .cloned()
+                .collect();
+            
+
+            for check_raid_difficulty in check_raid_ids.1.difficulty.iter() {
+                let difficulty_option = unique_difficulties.get(*check_raid_difficulty.0 as usize);
+                if check_raid_difficulty.1.boss_ids.is_empty() || difficulty_option.is_none() {
+                    continue;
+                }
+                let raid_difficulty = difficulty_option.unwrap();
+                let mut boss_id = 0;
+                for boss in raid_difficulty.bosses.iter() {
+                    if check_raid_difficulty.1.boss_ids.iter().find(|x| **x == boss_id).is_some() {
+                        if boss.last_timestamp.is_some() {
+                            if boss.last_timestamp.unwrap() > reset.try_into().unwrap() {
+                                if killed_raid_bosses.contains_key(&boss_id) {
+                                    let existing: &mut (String, (Vec<(String, u64)>)) = killed_raid_bosses.get_mut(&boss_id).unwrap();
+                                    existing.1.push((raid_difficulty.name.clone(), boss.last_timestamp.unwrap()));
+                                } else {
+                                    killed_raid_bosses.insert(boss_id, (boss.name.clone(), vec![(raid_difficulty.name.clone(), boss.last_timestamp.unwrap() / 1000)]));
+                                }
+                            }                    
+                        }
+                    }
+                    boss_id += 1;
                 }
             }
-        }
-
-        (saved_bosses, raid_difficulty.unwrap().name.clone())
-    }
-
-    pub fn check_saved_bosses(armory: &ArmoryCharacterResponse, raid_id: i32, raid_difficulty: i32, boss_kills: &Vec<i32>, check_saved_prev_difficulty: bool) -> Vec<String> {
-        info!("Checking saved bosses for raid ID: {} and difficulty: {}", raid_id, raid_difficulty);
-        let saved_kills = Self::check_raid_kills(armory, raid_id, raid_difficulty, boss_kills); 
-        let prev_diff_saved_kills = if check_saved_prev_difficulty && raid_difficulty > 1 {
-            Self::check_raid_kills(armory, raid_id, raid_difficulty - 1, boss_kills)
-        } else {
-            (Vec::new(), String::default())
-        };
-
-        let mut boss_map: HashMap<String, (usize, Option<u64>, Vec<String>)> = HashMap::new();
-        let mut order_counter = 0;
-    
-        // Insert from saved_kills
-        for boss in &saved_kills.0 {
-            let entry = boss_map.entry(boss.name.clone()).or_insert_with(|| {
-                let idx = order_counter;
-                order_counter += 1;
-                (idx, boss.last_timestamp, vec![saved_kills.1.clone()])
-            });
-    
-            if !entry.2.contains(&saved_kills.1) {
-                entry.2.push(saved_kills.1.clone());
+            for (_, (boss_name, difficulties)) in killed_raid_bosses.iter() {
+                let (difficulty, timestamp): (Vec<String>, Vec<u64>) = difficulties.iter().cloned().unzip();
+                let diff_str = difficulty.join(", ");
+                let season_start: DateTime<Utc> = Utc.timestamp_opt(*timestamp.last().unwrap() as i64, 0).unwrap();
+                killed_bosses.push((raid_check.name.clone(), format!("{} ({}) @ {}", boss_name, diff_str, season_start.format("%A %H:%M").to_string())));
             }
         }
-
-        for boss in &prev_diff_saved_kills.0 {
-            let entry = boss_map.entry(boss.name.clone()).or_insert_with(|| {
-                let idx = order_counter;
-                order_counter += 1;
-                (idx, boss.last_timestamp, vec![prev_diff_saved_kills.1.clone()])
-            });
-    
-            if entry.1.is_none() {
-                entry.1 = boss.last_timestamp;
-            }
-    
-            if !entry.2.contains(&prev_diff_saved_kills.1) {
-                entry.2.push(prev_diff_saved_kills.1.clone());
-            }
-        }
-    
-        let mut merged: Vec<_> = boss_map
-            .into_iter()
-            .filter_map(|(name, (order, timestamp_opt, mut difficulties))| {
-                timestamp_opt.map(|ts| {
-                    difficulties.dedup();
-                    let diff_str = difficulties.join(", ");
-                    let datetime: DateTime<Local> = Local.timestamp_opt((ts / 1000) as i64, 0).unwrap();
-
-                    let formatted = datetime.format("%A @ %H:%M").to_string();
-                    (order, format!("{name} ({diff_str}) killed {}", formatted))
-                })
-            })
-            .collect();
-    
-        // Sort by first-seen order
-        merged.sort_by_key(|(order, _)| *order);
-    
-        merged.into_iter().map(|(_, line)| line).collect()
+        killed_bosses
     }
 
     // TODO: This breaks on windows release builds??
-    pub fn check_aotc(_url: String, armory: &ArmoryCharacterResponse, expansions: &config::expansion_config::ExpansionsConfig, raid_id: i32) -> AOTCStatus {
+    pub fn check_aotc(_url: String, armory: &ArmoryCharacterResponse, expansions: &config::expansion_config::ExpansionsConfig, raid_saved_check: &BTreeMap<i32, RequiredRaid>) -> BTreeMap<i32, (String, AOTCStatus)> {
         info!("--- AOTC CHECK ---");
-        let binding = expansions.latest_expansion.clone().unwrap();
-        let raid = binding.find_raid_by_id(raid_id);
-        if raid.is_none() {
-            error!("Could not find raid with id: {}", raid_id);
-            return AOTCStatus::Error;
-        }
-        let achievement_id = raid.unwrap().aotc_achievement_id;
-        let ce_achievement_id = raid.unwrap().ce_achievement_id;
-        if achievement_id == -1 {
-            info!("No AOTC achievement found for raid with id: {}", raid_id);
-            return AOTCStatus::None;
-        }
-
         let client = Client::new();
     
         let url = _url.clone().trim_end_matches('/').to_string() + "/achievements/feats-of-strength";
@@ -691,6 +668,7 @@ impl ArmoryChecker {
             .send().unwrap()
             .text().unwrap();
 
+        let mut aotc_ce_status = BTreeMap::new();
         let re = Regex::new(r#"var\s+characterProfileInitialState\s*=\s*(\{.*?\});"#).unwrap();
         if let Some(captures) = re.captures(&response) {
             info!("Found character profile initial state in response.");
@@ -701,12 +679,21 @@ impl ArmoryChecker {
                 if category.1.id == "raids" {
                     info!("Found raids category in achievements.");
                     for achievement in category.1.achievements {
+                        let mut raid_name = String::default();
                         info!("Checking achievement: {} (ID: {})", achievement.name, achievement.id);
-                        if achievement.id == achievement_id || achievement.id == ce_achievement_id{
+                        let selected_raid = raid_saved_check.iter().find(|x| { 
+                            let raid = expansions.latest_expansion.as_ref().unwrap().find_raid_by_id(*x.0).unwrap();
+                            raid_name = raid.identifier.clone();
+                            raid.aotc_achievement_id == achievement.id || raid.ce_achievement_id == achievement.id
+                        });
+                        if selected_raid.is_some() {
                             info!("Found AOTC/CE achievement: {} (ID: {})", achievement.name, achievement.id);
-                            let raid_summary = armory.summary.raids.get(raid_id as usize);
+                            let selected_raid = selected_raid.unwrap();
+                            let raid_summary = armory.summary.raids.get(*selected_raid.0 as usize);
+                            let aotc_achievement_id = expansions.latest_expansion.as_ref().unwrap().find_raid_by_id(*selected_raid.0).map_or_else(Default::default, |raid| raid.aotc_achievement_id);
+                            let ce_achievement_id = expansions.latest_expansion.as_ref().unwrap().find_raid_by_id(*selected_raid.0).map_or_else(Default::default, |raid| raid.ce_achievement_id);
                             if raid_summary.is_some() {
-                                info!("Found raid summary for raid ID: {}", raid_id);
+                                info!("Found raid summary for raid ID: {}", selected_raid.0);
                                 let mut char_ce = false;
                                 if achievement.id == ce_achievement_id {
                                     info!("Account has Cutting Edge achievement, checking for Mythic last boss kill.");
@@ -719,41 +706,56 @@ impl ArmoryChecker {
 
                                 let raid_difficulty = raid_summary.unwrap().difficulties.get(2 as usize);
                                 if raid_difficulty.is_some() {
-                                    info!("Found heroic difficulty for raid ID: {}", raid_id);
+                                    info!("Found heroic difficulty for raid ID: {}", selected_raid.0);
                                     if raid_difficulty.unwrap().bosses.last().unwrap().kill_count >= 1 {
                                         info!("Heroic difficulty has last boss killed, character AOTC achieved.");
 
                                         if achievement.id == ce_achievement_id {
                                             info!("Character CE has killed last boss on heroic.");
-                                            return AOTCStatus::CuttingEdge(true, char_ce, true);
+                                            aotc_ce_status.insert(*selected_raid.0, (raid_name.clone(), AOTCStatus::CuttingEdge(true, char_ce, true)));
                                         } else {
                                             info!("Character has AOTC achievement.");
-                                            return AOTCStatus::Character;
+                                            aotc_ce_status.insert(*selected_raid.0, (raid_name.clone(), AOTCStatus::Character));
                                         }
                                     }
                                 }
 
-                                if achievement.id == ce_achievement_id && char_ce{
+                                if achievement.id == ce_achievement_id && char_ce && raid_difficulty.is_none() {
                                     info!("Character has Cutting Edge achievement, but no end boss heroic kill found for character.");
-                                    return AOTCStatus::CuttingEdge(true, char_ce, false);
+                                    aotc_ce_status.insert(*selected_raid.0, (raid_name.clone(), AOTCStatus::CuttingEdge(true, char_ce, false)));
                                 }
                             }
-                            if achievement_id == ce_achievement_id {
+                            
+                            if achievement.id == ce_achievement_id && !aotc_ce_status.contains_key(selected_raid.0){
                                 info!("Account has Cutting Edge achievement, no end boss heroic kill found for character.");
-                                return AOTCStatus::CuttingEdge(true, false, false);
+                                aotc_ce_status.insert(*selected_raid.0, (raid_name.clone(), AOTCStatus::CuttingEdge(true, false, false)));
                             }
-                            info!("Account has AOTC achievement, no end boss heroic kill found for character.");
-                            return AOTCStatus::Account;
+                            
+
+                            if !aotc_ce_status.contains_key(selected_raid.0) {
+                                info!("Account has AOTC achievement, no end boss heroic kill found for character.");
+                                aotc_ce_status.insert(*selected_raid.0, (raid_name.clone(), AOTCStatus::Account));
+                            }
+                            
                         }
                     }
+                    break;
                 }
             }
         } else {
             error!("Could not find character profile initial state in response.");
-            return AOTCStatus::Error;
         }
         info!("No AOTC data found for account.");
-        return AOTCStatus::None;
+        
+        for (raid_id, _) in raid_saved_check.iter() {
+            if !aotc_ce_status.contains_key(&raid_id) {
+                let raid = expansions.latest_expansion.as_ref().unwrap().find_raid_by_id(*raid_id).unwrap().identifier.clone();
+                info!("No AOTC/CE data found for raid ID: {}", raid_id);
+                aotc_ce_status.insert(*raid_id, (raid, AOTCStatus::None));
+            }
+        }
+
+        aotc_ce_status
     }
 
     pub fn check_raid_buff(_url: String, expansions: &config::expansion_config::ExpansionsConfig, raid_id: i32) -> (i32, bool, i32, i32) {

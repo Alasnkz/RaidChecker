@@ -183,19 +183,28 @@ impl SignUpsUI {
                 bad_message += format!("Your ilvl {} does not match the required ilvl for this raid: {}\n", player.ilvl, settings.average_ilvl).as_str();
             }
 
+            let mut raid_name = String::new();
             if player.unkilled_bosses.len() > 0 {
+                
                 set_bad = true;
-                bad_message += format!("You have not killed the following bosses:\n").as_str();
                 for boss in player.unkilled_bosses.iter() {
-                    bad_message += format!("\t{}\n", boss).as_str();
+                    if raid_name != boss.0 {
+                        raid_name = boss.0.clone();
+                        bad_message += format!("You have not killed the following bosses in {}:\n", raid_name).as_str();
+                    }
+                    bad_message += format!("\t{}\n", boss.1).as_str();
                 }
             }
 
+            raid_name = String::new();
             if player.saved_bosses.len() > 0 {
                 set_bad = true;
-                bad_message += format!("You are saved to the following bosses:\n").as_str();
                 for boss in player.saved_bosses.iter() {
-                    bad_message += format!("\t{}\n", boss).as_str();
+                    if raid_name != boss.0 {
+                        raid_name = boss.0.clone();
+                        bad_message += format!("You are saved to the following bosses in {}:\n", raid_name).as_str();
+                    }
+                    bad_message += format!("\t{}\n", boss.1).as_str();
                 }
             }
 
@@ -250,34 +259,9 @@ impl SignUpsUI {
                 }
                 bad += 1;
             }
-
-            if player.aotc_status != AOTCStatus::None {
-                match player.aotc_status {
-                    AOTCStatus::Account => {
-                        aotc += 1;
-                    },
-
-                    AOTCStatus::Character => {
-                        aotc += 1;
-                    },
-
-                    AOTCStatus::CuttingEdge(_, _, _) => {
-                        cutting_edge += 1;
-                    },
-
-                    _ => {
-                        no_aotc += 1;
-                    }
-                }
-            } else {
-                no_aotc += 1;
-            }
         }
 
         ui.label(format!("{}/{} haved passed the checks.", (primary_people.len() + queued_people.len()) - bad, primary_people.len() + queued_people.len()));
-        ui.label(format!("{} people do not have AOTC/CE.", no_aotc));
-        ui.label(format!("{} people have AOTC.", aotc));
-        ui.label(format!("{} people have Cutting Edge.", cutting_edge));
         ui.label("");
 
         for message in bad_primary.iter() {
@@ -330,22 +314,32 @@ impl SignUpsUI {
             ui.label("");
         }
 
-        
-
+        let mut raid_name = String::new();
         if player.unkilled_bosses.len() > 0 {
             ui.label(format!("{} has not killed the following bosses:", player.name.clone()));
             for boss in player.unkilled_bosses.iter() {
-                ui.label(format!("\t{}", boss));
+                if raid_name != boss.0 {
+                    raid_name = boss.0.clone();
+                    ui.heading(format!("{}", raid_name));
+                }
+
+                ui.label(format!("\t{}", boss.1));
             }
 
             ui.label("");
             ui.label("");
         }
 
+        let mut raid_name = String::new();
         if player.saved_bosses.len() > 0 {
             ui.label(format!("{} is saved to these bosses this reset:", player.name.clone()));
             for boss in player.saved_bosses.iter() {
-                ui.label(format!("\t{}", boss));
+                if raid_name != boss.0 {
+                    raid_name = boss.0.clone();
+                    ui.heading(format!("{}", raid_name));
+                }
+
+                ui.label(format!("\t{}", boss.1));
             }
 
             ui.label("");
@@ -405,45 +399,43 @@ impl SignUpsUI {
             ui.label("");
         }
 
-        if player.aotc_status != AOTCStatus::None {
-            if player.aotc_status == AOTCStatus::Error {
-                ui.label(format!("{} has an error checking for AOTC.", player.name.clone()));
-            } else {
-                let mut string = String::new();
-                match player.aotc_status {
-                    AOTCStatus::Account => {
-                        string = format!("{} has AOTC on their account, but not on this character.", player.name.clone());
-                    },
+        for (raid_id, (raid_name, aotc_status)) in player.aotc_status.iter() {
+            let mut string = String::new();
+            match aotc_status {
+                AOTCStatus::Account => {
+                    string = format!("{} has {raid_name} AOTC on their account, but not on this character.", player.name.clone());
+                },
 
-                    AOTCStatus::Character => {
-                        string = format!("{} has AOTC on this character.", player.name.clone());
-                    },
+                AOTCStatus::Character => {
+                    string = format!("{} has {raid_name} AOTC on this character.", player.name.clone());
+                },
 
-                    AOTCStatus::CuttingEdge(account, character, heroic_kill) => {
-                        if account == true && character == false {
-                            if heroic_kill == true {
-                                string = format!("{} has Cutting Edge on their account, but on this character, they have only earned AOTC.", player.name.clone());
-                            } else {
-                                string = format!("{} has Cutting Edge on their account, but not on this character. This character has not earned AOTC.", player.name.clone());
-                            }
-                        } else if account == true && character == true {
-                            if heroic_kill == false {
-                                string = format!("{} has Cutting Edge on this character, but has not earned AOTC on this character.", player.name.clone());
-                            } else {
-                                string = format!("{} has Cutting Edge on this character.", player.name.clone());
-                            }
-                            
+                AOTCStatus::CuttingEdge(account, character, heroic_kill) => {
+                    if *account == true && *character == false {
+                        if *heroic_kill == true {
+                            string = format!("{} has {raid_name} Cutting Edge on their account, but on this character, they have only earned AOTC.", player.name.clone());
+                        } else {
+                            string = format!("{} has {raid_name} Cutting Edge on their account, but not on this character. This character has not earned AOTC.", player.name.clone());
                         }
-                    },
-
-                    _ => { 
-                        ui.label("Unknown AOTC status.");
+                    } else if *account == true && *character == true {
+                        if *heroic_kill == false {
+                            string = format!("{} has {raid_name} Cutting Edge on this character, but has not earned AOTC on this character.", player.name.clone());
+                        } else {
+                            string = format!("{} has {raid_name} Cutting Edge on this character.", player.name.clone());
+                        }
+                        
                     }
+                },
+
+                AOTCStatus::None => {
+                    string = format!("{} does not have {raid_name} AOTC.", player.name.clone());
+                },
+
+                _ => { 
+                    string = format!("Unknown {raid_name} AOTC status.");
                 }
-                ui.label(string);
             }
-        } else {
-            ui.label("Player does not have AOTC.");
+            ui.label(string);
         }
 
         ui.label("");

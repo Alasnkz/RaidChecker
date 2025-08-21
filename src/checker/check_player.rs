@@ -1,11 +1,11 @@
-use std::sync::mpsc::{Receiver, Sender};
+use std::{collections::BTreeMap, sync::mpsc::{Receiver, Sender}};
 
 use regex::Regex;
 use reqwest::blocking::Client;
 use scraper::{Html, Selector};
 use tracing::info;
 
-use crate::config::{self, realms::RealmJson};
+use crate::config::{self, realms::RealmJson, settings::RequiredRaid};
 
 use super::{armory_checker::{AOTCStatus, ArmoryChecker}, raid_sheet::{Player, RaidHelperCheckerStatus, RaidHelperUIStatus}};
 
@@ -60,14 +60,14 @@ pub struct PlayerData {
     pub discord_id: String,
     pub name: String,
     pub status: String,
-    pub unkilled_bosses: Vec<String>,
+    pub unkilled_bosses: Vec<(String, String)>,
     pub bad_gear: Vec<String>,
     pub bad_socket: Vec<String>,
     pub bad_special_item: Vec<String>,
     pub num_embelishments: i32,
     pub ilvl: i32,
-    pub saved_bosses: Vec<String>,
-    pub aotc_status: AOTCStatus,
+    pub saved_bosses: Vec<(String, String)>,
+    pub aotc_status: BTreeMap<i32, (String, AOTCStatus)>,
     pub buff_status: (i32, bool, i32, i32),
     pub skip_reason: Option<String>,
     pub armory_url: String,
@@ -83,7 +83,7 @@ enum SearchPromptResult {
 impl PlayerChecker {
     pub fn check_player(player: &Player, thread_sender: &Sender<RaidHelperCheckerStatus>, thread_reciever: &Receiver<RaidHelperUIStatus>,
         settings: &config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig, realms: &config::realms::RealmJson,
-        raid_id: i32, raid_difficulty: i32, boss_kills: &Vec<i32>, check_saved_prev_difficulty: bool, char_url: Option<String>) -> Option<PlayerData>
+        raid_saved_check: &BTreeMap<i32, RequiredRaid>, char_url: Option<String>) -> Option<PlayerData>
     {
         let mut armory_data = None;
 
@@ -127,7 +127,7 @@ impl PlayerChecker {
                             num_embelishments: -1,
                             ilvl: 0,
                             saved_bosses: Vec::new(),
-                            aotc_status: super::armory_checker::AOTCStatus::None,
+                            aotc_status: BTreeMap::new(),
                             buff_status: (0, false, 0, 0),
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
@@ -161,7 +161,7 @@ impl PlayerChecker {
                         num_embelishments: -1,
                         ilvl: 0,
                         saved_bosses: Vec::new(),
-                        aotc_status: super::armory_checker::AOTCStatus::None,
+                        aotc_status: BTreeMap::new(),
                         buff_status: (0, false, 0, 0),
                         skip_reason: Some("Skipped by user.".to_owned()),
                         armory_url: "".to_owned(),
@@ -195,7 +195,7 @@ impl PlayerChecker {
                             num_embelishments: -1,
                             ilvl: 0,
                             saved_bosses: Vec::new(),
-                            aotc_status: super::armory_checker::AOTCStatus::None,
+                            aotc_status: BTreeMap::new(),
                             buff_status: (0, false, 0, 0),
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
@@ -215,10 +215,11 @@ impl PlayerChecker {
         let (bad_enchant_gear, bad_socket_gear, bad_special_item, embelishments) = ArmoryChecker::check_gear(&data, settings, expansions);
         info!("Character has {} ilvl", data.character.average_item_level);
         let ilvl = data.character.average_item_level;
-        let saved_bosses = ArmoryChecker::check_saved_bosses(&data, raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty);
-        let aotc_report = ArmoryChecker::check_aotc(url.clone(), &data, expansions, raid_id);
+        let saved_bosses = ArmoryChecker::check_saved_bosses(&data, &raid_saved_check);
+        let aotc_report = ArmoryChecker::check_aotc(url.clone(), &data, expansions, &raid_saved_check);
         info!("--- END AOTC CHECK ---");
-        let buff_status = ArmoryChecker::check_raid_buff(url.clone(), expansions, raid_id);
+        //let buff_status = ArmoryChecker::check_raid_buff(url.clone(), expansions, raid_id);
+        let buff_status = (0, false, 0, 0);
         info!("-------------------- Finished checking player {} -------------------", player.name);
         Some(PlayerData {
             discord_id: player.userId.clone(),
