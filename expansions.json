@@ -508,8 +508,8 @@
                 "Unknown Boss Name 5",
                 "Unknown Boss Name 6"
               ],
-              "aotc_achievement_id": 41624,
-              "ce_achievement_id": 41625
+              "aotc_achievement_id": 0,
+              "ce_achievement_id": 0
             },
 
             {
@@ -536,19 +536,8 @@
               "boss_names": [
                 "Unknown Boss Name"
               ],
-              "aotc_achievement_id": 41624,
-              "ce_achievement_id": 41625,
-
-              "reputation": {
-                "raid_rep_slug": "manaforge-vandals",
-                "raid_buff_renowns": [
-                  4, 7, 10, 13, 15
-                ],
-                "renown_start": 1755057600,
-                "max_renown_value_weekly": 5000,
-                "renown_level_value": 2500,
-                "buff_size": 3
-              }
+              "aotc_achievement_id": 0,
+              "ce_achievement_id": 0
             },
 
             {
@@ -592,7 +581,7 @@
       "gear_enchants": [],
       "seasons": [
         {
-          "seasonal_identifier": "S1",
+          "seasonal_identifier": "Season 1",
           "raids": [],
           "season_start": 0
         }

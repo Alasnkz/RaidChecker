@@ -434,6 +434,7 @@ impl SignUpsUI {
                 AOTCStatus::Skipped => {
                     string = format!("");
                 },
+                
                 _ => { 
                     string = format!("Unknown {raid_name} AOTC status.");
                 }

@@ -726,8 +726,9 @@ impl ArmoryChecker {
                         let selected_raid = raid_saved_check.iter().find(|x| { 
                             let raid = expansions.latest_expansion.as_ref().unwrap().find_raid_by_id(*x.0).unwrap();
                             raid_name = raid.identifier.clone();
-                            raid.aotc_achievement_id == achievement.id || raid.ce_achievement_id == achievement.id
+                            (raid.aotc_achievement_id == achievement.id || raid.ce_achievement_id == achievement.id)
                         });
+
                         if selected_raid.is_some() {
                             info!("Found AOTC/CE achievement: {} (ID: {})", achievement.name, achievement.id);
                             let selected_raid = selected_raid.unwrap();
@@ -789,8 +790,8 @@ impl ArmoryChecker {
         }
         info!("No AOTC data found for account.");
         
-        for (raid_id, _) in raid_saved_check.iter() {
-            if !aotc_ce_status.contains_key(&raid_id) {
+        for (raid_id, required) in raid_saved_check.iter() {
+            if !aotc_ce_status.contains_key(&raid_id) && required.difficulty.iter().any(|y| !y.1.boss_ids.is_empty()) {
                 let raid = expansions.latest_expansion.as_ref().unwrap().find_raid_by_id(*raid_id).unwrap().identifier.clone();
                 info!("No AOTC/CE data found for raid ID: {}", raid_id);
                 aotc_ce_status.insert(*raid_id, (raid, AOTCStatus::None));

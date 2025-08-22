@@ -227,7 +227,14 @@ impl SettingsUi {
                             for season in expansion_config.latest_expansion.as_ref().unwrap().seasons.iter() {
                                 ui.label(season.seasonal_identifier.clone());
                                 for raid in season.raids.iter() {
-                                    ui.selectable_value(&mut self.current_raid_id, raid.id, raid.identifier.clone());
+                                    let text_colour = if settings.required_raids.get(&raid.id).is_some() && settings.required_raids.get(&raid.id).unwrap().difficulty.iter().any(|d| !d.1.boss_ids.is_empty()) {
+                                        egui::Color32::YELLOW
+                                    } 
+                                    else{ 
+                                        egui::Color32::WHITE
+                                    };
+
+                                    ui.selectable_value(&mut self.current_raid_id, raid.id, egui::RichText::new(raid.identifier.clone()).color(text_colour));
                                 }
 
                                 if season.seasonal_identifier == expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_identifier {
@@ -247,7 +254,16 @@ impl SettingsUi {
                         .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.get(self.current_raid_difficulty as usize).unwrap().difficulty_name))
                         .show_ui(ui, |ui| {
                             for difficulty in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.iter() {
-                                ui.selectable_value(&mut self.current_raid_difficulty, difficulty.id, difficulty.difficulty_name.clone());
+                                let text_colour = if settings.required_raids.get(&self.current_raid_id).is_some() && 
+                                    settings.required_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).is_some() &&
+                                    !settings.required_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).unwrap().boss_ids.is_empty() {
+                                    egui::Color32::YELLOW
+                                } 
+                                else{ 
+                                    egui::Color32::WHITE
+                                };
+
+                                ui.selectable_value(&mut self.current_raid_difficulty, difficulty.id, egui::RichText::new(difficulty.difficulty_name.clone()).color(text_colour));
                             }
                         });
 
