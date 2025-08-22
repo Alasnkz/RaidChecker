@@ -68,7 +68,7 @@ pub struct PlayerData {
     pub ilvl: i32,
     pub saved_bosses: Vec<(String, String)>,
     pub aotc_status: BTreeMap<i32, (String, AOTCStatus)>,
-    pub buff_status: (i32, bool, i32, i32),
+    pub buff_status: BTreeMap<i32, (String, i32, bool, i32, i32)>,
     pub skip_reason: Option<String>,
     pub armory_url: String,
     pub queued: bool,
@@ -128,7 +128,7 @@ impl PlayerChecker {
                             ilvl: 0,
                             saved_bosses: Vec::new(),
                             aotc_status: BTreeMap::new(),
-                            buff_status: (0, false, 0, 0),
+                            buff_status: BTreeMap::new(),
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
                             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" 
@@ -162,7 +162,7 @@ impl PlayerChecker {
                         ilvl: 0,
                         saved_bosses: Vec::new(),
                         aotc_status: BTreeMap::new(),
-                        buff_status: (0, false, 0, 0),
+                        buff_status: BTreeMap::new(),
                         skip_reason: Some("Skipped by user.".to_owned()),
                         armory_url: "".to_owned(),
                         queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench"
@@ -196,7 +196,7 @@ impl PlayerChecker {
                             ilvl: 0,
                             saved_bosses: Vec::new(),
                             aotc_status: BTreeMap::new(),
-                            buff_status: (0, false, 0, 0),
+                            buff_status: BTreeMap::new(),
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
                             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench"
@@ -218,8 +218,7 @@ impl PlayerChecker {
         let saved_bosses = ArmoryChecker::check_saved_bosses(&data, &raid_saved_check);
         let aotc_report = ArmoryChecker::check_aotc(url.clone(), &data, expansions, &raid_saved_check);
         info!("--- END AOTC CHECK ---");
-        //let buff_status = ArmoryChecker::check_raid_buff(url.clone(), expansions, raid_id);
-        let buff_status = (0, false, 0, 0);
+        let buff_status = ArmoryChecker::check_raid_buff(url.clone(), expansions, &raid_saved_check);
         info!("-------------------- Finished checking player {} -------------------", player.name);
         Some(PlayerData {
             discord_id: player.userId.clone(),

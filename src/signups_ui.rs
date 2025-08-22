@@ -139,7 +139,7 @@ impl SignUpsUI {
                 },
 
                 PriorityChecks::RaidBuff => {
-                    if player.buff_status.0 > 0 {
+                    if player.buff_status.iter().any(|x| x.1.1 > 0) {
                         let buff_colour: [u8; 4] = settings.buff_colour.unwrap();
                         return egui::Color32::from_rgb(buff_colour[0], buff_colour[1], buff_colour[2]);
                     }
@@ -166,11 +166,6 @@ impl SignUpsUI {
         }
 
         for player in combined.iter() {
-            let missing_buff_count = player.buff_status.0;
-            let missing_buff_possible = player.buff_status.1;
-            let missing_buff_size = player.buff_status.2;
-            let missing_buff_catchup = player.buff_status.3;
-
             let mut set_bad = false;
             let mut bad_message = format!("<@{}> Your signed character {} does not meet the requirements:\n", player.discord_id, player.name.clone());
             if player.skip_reason.is_some() {
@@ -237,19 +232,23 @@ impl SignUpsUI {
                 bad_message += format!("You are missing **{}** embelishments, you need at least **{}**\n", settings.embelishments - player.num_embelishments, settings.embelishments).as_str();
             }
 
-            if missing_buff_count > 0 {
-                set_bad = true;
-                bad_message += format!("You are missing **{}%** raid buff!\n", missing_buff_count * missing_buff_size).as_str();
-                
-                if missing_buff_possible == false {
-                    bad_message += format!("You can **not** catch up with the raid buff this week.\n").as_str();
-                } else {
-                    bad_message += format!("You can get a **{}%** raid buff this week, **assuming you have not done any renown this week**. ({} catchup)\n", missing_buff_size, missing_buff_catchup).as_str();
-                    if missing_buff_count > 1 {
-                        bad_message += format!("Due to catch up being capped, **you will miss {}%** of the raid buff.\n", (missing_buff_count - 1) * missing_buff_size).as_str();
+            for (_, (raid_name, missing_buff_count, missing_buff_possible, missing_buff_size, missing_buff_catchup)) in player.buff_status.iter() {
+                if *missing_buff_count > 0 {
+                    set_bad = true;
+                    bad_message += format!("You are missing **{}%** raid buff from {raid_name}!\n", missing_buff_count * missing_buff_size).as_str();
+                    
+                    if *missing_buff_possible == false {
+                        bad_message += format!("You can **not** catch up with {raid_name}'s raid buff this week.\n").as_str();
+                    } else {
+                        bad_message += format!("You can get a **{}%** raid buff this week, **assuming you have not done any renown this week**. ({} catchup)\n", missing_buff_size, missing_buff_catchup).as_str();
+                        if *missing_buff_count > 1 {
+                            bad_message += format!("Due to catch up being capped, **you will miss {}%** of the raid buff.\n", (missing_buff_count - 1) * missing_buff_size).as_str();
+                        }
                     }
                 }
             }
+
+            
 
             if set_bad == true{
                 if player.queued {
@@ -379,24 +378,21 @@ impl SignUpsUI {
             ui.label("");
         }
         
-        let missing_buff_count = player.buff_status.0;
-        let missing_buff_possible = player.buff_status.1;
-        let missing_buff_size = player.buff_status.2;
-        let missing_buff_catchup = player.buff_status.3;
-        if missing_buff_count > 0 {
+        for (_, (raid_name, missing_buff_count, missing_buff_possible, missing_buff_size, missing_buff_catchup)) in player.buff_status.iter() {
+            if *missing_buff_count > 0 {
+                ui.label(egui::RichText::new(format!("{} is missing {}% raid buff for {raid_name}!", player.name.clone(), missing_buff_count * missing_buff_size)).color(egui::Color32::from_rgb(255, 255, 0)));
 
-            ui.label(egui::RichText::new(format!("{} is missing {}% raid buff!", player.name.clone(), missing_buff_count * missing_buff_size)).color(egui::Color32::from_rgb(255, 255, 0)));
-
-            if missing_buff_possible == false {
-                ui.label(egui::RichText::new(format!("{} can not catch up with the raid buff this week, assuming they have not done any renown this week and they have {} renown catchup possible.", player.name.clone(), missing_buff_catchup)).color(egui::Color32::from_rgb(255, 0, 0)));
-            } else {
-                ui.label(egui::RichText::new(format!("Assuming {} has not done any rep this week (catchup of {} renown). It is possible they can catch up and get a {}% damage/healing buff.", player.name.clone(), missing_buff_catchup, missing_buff_size)).color(egui::Color32::from_rgb(0, 255, 0)));
-                if missing_buff_count > 1 {
-                    ui.label(egui::RichText::new(format!("However, they will not be able to catch up to the other {}% damage/healing buffs they are missing.", (missing_buff_count - 1) * missing_buff_size)).color(egui::Color32::from_rgb(255, 0, 0)));
+                if *missing_buff_possible == false {
+                    ui.label(egui::RichText::new(format!("{} can not catch up with {raid_name}'s raid buff this week, assuming they have not done any renown this week and they have {} renown catchup possible.", player.name.clone(), missing_buff_catchup)).color(egui::Color32::from_rgb(255, 0, 0)));
+                } else {
+                    ui.label(egui::RichText::new(format!("Assuming {} has not done any rep this week (catchup of {} renown). It is possible they can catch up and get a {}% damage/healing buff.", player.name.clone(), missing_buff_catchup, missing_buff_size)).color(egui::Color32::from_rgb(0, 255, 0)));
+                    if *missing_buff_count > 1 {
+                        ui.label(egui::RichText::new(format!("However, they will not be able to catch up to the other {}% damage/healing buffs they are missing.", (missing_buff_count - 1) * missing_buff_size)).color(egui::Color32::from_rgb(255, 0, 0)));
+                    }
                 }
+                ui.label("");
+                ui.label("");
             }
-            ui.label("");
-            ui.label("");
         }
 
         for (_, (raid_name, aotc_status)) in player.aotc_status.iter() {
@@ -434,7 +430,7 @@ impl SignUpsUI {
                 AOTCStatus::Skipped => {
                     string = format!("");
                 },
-                
+
                 _ => { 
                     string = format!("Unknown {raid_name} AOTC status.");
                 }

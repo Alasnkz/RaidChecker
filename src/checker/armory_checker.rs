@@ -6,7 +6,7 @@ use reqwest::blocking::Client;
 use serde::Deserialize;
 use tracing::{error, info, warn};
 
-use crate::config::{self, expansion_config::{ExpansionEnchants, Expansions, ExpansionsConfig}, settings::{EnchantmentSlotSetting, RequiredRaid, Settings}};
+use crate::config::{self, expansion_config::{ExpansionEnchants, Expansions, ExpansionsConfig, RaidDifficulty}, settings::{EnchantmentSlotSetting, RequiredRaid, RequiredRaidDifficulty, Settings}};
 
 #[allow(dead_code)]
 pub struct ArmoryChecker {}
@@ -687,8 +687,19 @@ impl ArmoryChecker {
     }
 
     // TODO: This breaks on windows release builds??
-    pub fn check_aotc(_url: String, armory: &ArmoryCharacterResponse, expansions: &config::expansion_config::ExpansionsConfig, raid_saved_check: &BTreeMap<i32, RequiredRaid>) -> BTreeMap<i32, (String, AOTCStatus)> {
+    pub fn check_aotc(_url: String, armory: &ArmoryCharacterResponse, expansions: &config::expansion_config::ExpansionsConfig, raid_saved_check_input: &BTreeMap<i32, RequiredRaid>) -> BTreeMap<i32, (String, AOTCStatus)> {
         info!("--- AOTC CHECK ---");
+        let raid_saved_check = if raid_saved_check_input.is_empty() || raid_saved_check_input.iter().all(|x| x.1.difficulty.is_empty()) || 
+           raid_saved_check_input.iter().all(|x| x.1.difficulty.iter().all(|y| y.1.boss_ids.is_empty())) {
+            info!("Specified raid is empty, assuming last raid.");
+            BTreeMap::from([(expansions.latest_expansion.clone().unwrap().latest_season.unwrap().raids.last().unwrap().id, RequiredRaid {
+                id: expansions.latest_expansion.clone().unwrap().latest_season.unwrap().raids.last().unwrap().id,
+                difficulty: BTreeMap::from([(1, RequiredRaidDifficulty { boss_ids: vec![0]} )])
+            })])
+        } else {
+            raid_saved_check_input.clone()
+        };
+        
         let client = Client::new();
     
         let url = _url.clone().trim_end_matches('/').to_string() + "/achievements/feats-of-strength";
@@ -801,6 +812,127 @@ impl ArmoryChecker {
         aotc_ce_status
     }
 
+    pub fn check_raid_buff(_url: String, expansions: &config::expansion_config::ExpansionsConfig, raid_saved_check_input: &BTreeMap<i32, RequiredRaid>) -> BTreeMap<i32, (String, i32, bool, i32, i32)> {
+        info!("Checking for raid buffs");
+        let mut raid_buffs = BTreeMap::new();
+        
+        let raid_saved_check = if raid_saved_check_input.is_empty() || raid_saved_check_input.iter().all(|x| x.1.difficulty.is_empty()) || 
+           raid_saved_check_input.iter().all(|x| x.1.difficulty.iter().all(|y| y.1.boss_ids.is_empty())) {
+            info!("Specified raid is empty, assuming last raid.");
+            BTreeMap::from([(expansions.latest_expansion.clone().unwrap().latest_season.unwrap().raids.last().unwrap().id, RequiredRaid {
+                id: expansions.latest_expansion.clone().unwrap().latest_season.unwrap().raids.last().unwrap().id,
+                difficulty: BTreeMap::from([(1, RequiredRaidDifficulty { boss_ids: vec![0]} )])
+            })])
+        } else {
+            raid_saved_check_input.clone()
+        };
+
+        let url = _url.clone().trim_end_matches('/').to_string() + "/reputation";
+        let __url = url.clone();
+        let client = Client::new();
+        let response = client
+            .get(url)
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+            .send().unwrap()
+            .text().unwrap();
+
+        let re = Regex::new(r#"var\s+characterProfileInitialState\s*=\s*(\{.*?\});"#).unwrap();
+        let capture = re.captures(&response);
+        if capture.is_none() {
+            error!("Could not find character profile initial state in response.");
+            return raid_buffs;
+        }
+
+        let js_variable = &capture.unwrap()[1];
+        let armory_response: ArmoryCharacterReputationResponse = serde_json::from_str(&js_variable).unwrap();
+        let binding = expansions.latest_expansion.clone().unwrap();
+        for raid_check_id in raid_saved_check.iter() {
+            if raid_check_id.1.difficulty.is_empty() || raid_check_id.1.difficulty.iter().all(|y| y.1.boss_ids.is_empty()) {
+                info!("Skipping raid ID: {} as it has no specified input to check for raid buff.", raid_check_id.0);
+                continue;
+            }
+
+            let raid = binding.find_raid_by_id(*raid_check_id.0).unwrap();
+            if raid.reputation.is_none() {
+                info!("Raid {} has no reputation, skipping buff check.", raid.identifier);
+                raid_buffs.insert(*raid_check_id.0, (raid.identifier.clone(), 0, false, 0, 0));
+                continue;
+            }
+
+            let mut o_data: Option<ReputationCategory> = None;
+            let reputation = raid.reputation.clone().unwrap();
+            for category in armory_response.reputations.reputations.clone() {
+                if category.id == expansions.latest_expansion.clone().unwrap().reputation_slug {
+                    for expansion_rep in category.reputations {
+                        if expansion_rep.id == reputation.raid_rep_slug {
+                            o_data = Some(expansion_rep.clone());
+                            break;
+                        } else if expansion_rep.reputations.len() > 0 {
+                            for sub_rep in expansion_rep.reputations {
+                                if sub_rep.id == reputation.raid_rep_slug {
+                                    o_data = Some(sub_rep.clone());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            let time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(reputation.renown_start, 0).unwrap(), Utc);
+            let now = Utc::now();
+            let duration = now - time;
+            let weeks = duration.num_weeks() + 1;
+            let max_renown = weeks + 1; // Can gain 2 renown on the first week.
+            let buff_renowns = reputation.raid_buff_renowns;
+
+            if o_data.is_some() {
+                let data = o_data.unwrap();
+                info!("Reputation data found: {:?}", data);
+                
+                let renown = data.standing.unwrap().split(" ").last().unwrap().parse::<i32>().unwrap();
+                let renown_amount = data.value.unwrap_or(0) as i32;
+                let weekly = reputation.max_renown_value_weekly + renown_amount; // Add our current renown amount to the weekly cap.
+                let missing_buff_levels: Vec<i32> = buff_renowns
+                    .iter()
+                    .filter(|&&lvl| lvl <= max_renown as i32 && lvl > renown)
+                    .copied()
+                    .collect();
+    
+                if missing_buff_levels.len() > 0 {
+                    let first_renown = missing_buff_levels.first().unwrap().clone();
+                    let diff = first_renown - renown;
+                    let possible = ((diff * data.max_value.unwrap() as i32) as f32 / weekly as f32) <= 1.0 as f32;
+                    info!("Missing buff levels: {:?}, possible to get a buff with 5k backup: {}", missing_buff_levels, possible);
+                    raid_buffs.insert(*raid_check_id.0, (raid.identifier.clone(), missing_buff_levels.len() as i32, possible, reputation.buff_size, reputation.max_renown_value_weekly));
+                    continue;
+                } else {
+                    info!("No missing buff levels found, current renown: {}, max renown: {}", renown, max_renown);
+                }
+            } else {
+                info!("No reputation data found for raid: {}", raid.identifier);
+                let renown = 1; // Assume we'll start at 1.
+                let missing_buff_levels: Vec<i32> = buff_renowns
+                    .iter()
+                    .filter(|&&lvl| lvl <= max_renown as i32 && lvl > renown)
+                    .copied()
+                    .collect();
+    
+                if missing_buff_levels.len() > 0 {
+                    let first_renown = missing_buff_levels.first().unwrap().clone();
+                    let diff = first_renown - renown;
+                    let possible = (diff as f32 * reputation.renown_level_value as f32 / reputation.max_renown_value_weekly as f32) <= 1.0;
+                    info!("{} Missing buff levels: {:?}, possible to get a buff with {} backup: {}", raid.identifier, missing_buff_levels, reputation.max_renown_value_weekly, possible);
+                    raid_buffs.insert(*raid_check_id.0, (raid.identifier.clone(), missing_buff_levels.len() as i32, possible, reputation.buff_size, reputation.max_renown_value_weekly));
+                    continue;
+                } else {
+                    info!("No missing buff levels found, current renown: {}, max renown: {}", renown, max_renown);
+                }
+            }
+        }
+        raid_buffs
+    }
+/*
     pub fn check_raid_buff(_url: String, expansions: &config::expansion_config::ExpansionsConfig, raid_id: i32) -> (i32, bool, i32, i32) {
         info!("Checking for raid buff");
         let binding = expansions.latest_expansion.clone().unwrap();
@@ -850,55 +982,7 @@ impl ArmoryChecker {
             }
         }
     
-        let time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(reputation.renown_start, 0).unwrap(), Utc);
-        let now = Utc::now();
-        let duration = now - time;
-        let weeks = duration.num_weeks() + 1;
-        let max_renown = weeks + 1; // Can gain 2 renown on the first week.
-        let buff_renowns = reputation.raid_buff_renowns;
+        */
 
-        if o_data.is_some() {
-            let data = o_data.unwrap();
-            info!("Reputation data found: {:?}", data);
-            
-            let renown = data.standing.unwrap().split(" ").last().unwrap().parse::<i32>().unwrap();
-            let renown_amount = data.value.unwrap_or(0) as i32;
-            let weekly = reputation.max_renown_value_weekly + renown_amount; // Add our current renown amount to the weekly cap.
-            let missing_buff_levels: Vec<i32> = buff_renowns
-                .iter()
-                .filter(|&&lvl| lvl <= max_renown as i32 && lvl > renown)
-                .copied()
-                .collect();
-
-            if missing_buff_levels.len() > 0 {
-                let first_renown = missing_buff_levels.first().unwrap().clone();
-                let diff = first_renown - renown;
-                let possible = ((diff * data.max_value.unwrap() as i32) as f32 / weekly as f32) <= 1.0 as f32;
-                info!("Missing buff levels: {:?}, possible to get a buff with 5k backup: {}", missing_buff_levels, possible);
-                return (missing_buff_levels.len() as i32, possible, reputation.buff_size, reputation.max_renown_value_weekly);
-            } else {
-                info!("No missing buff levels found, current renown: {}, max renown: {}", renown, max_renown);
-            }
-
-        } else {
-            info!("No reputation data found for raid: {}", raid_id);
-            let renown = 1; // Assume we'll start at 1.
-            let missing_buff_levels: Vec<i32> = buff_renowns
-                .iter()
-                .filter(|&&lvl| lvl <= max_renown as i32 && lvl > renown)
-                .copied()
-                .collect();
-
-            if missing_buff_levels.len() > 0 {
-                let first_renown = missing_buff_levels.first().unwrap().clone();
-                let diff = first_renown - renown;
-                let possible = (diff as f32 * reputation.renown_level_value as f32 / reputation.max_renown_value_weekly as f32) <= 1.0;
-                info!("Missing buff levels: {:?}, possible to get a buff with {} backup: {}", missing_buff_levels, reputation.max_renown_value_weekly, possible);
-                return (missing_buff_levels.len() as i32, possible, reputation.buff_size, reputation.max_renown_value_weekly);
-            } else {
-                info!("No missing buff levels found, current renown: {}, max renown: {}", renown, max_renown);
-            }
-        }
-        (0, false, 0, 0)
-    }
+        
 }
