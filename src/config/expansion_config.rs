@@ -13,8 +13,10 @@ pub struct ItemData {
     pub sub_slots: Vec<String>, // things like TWOHWEAPON... is a weapon.
     #[serde(default="default_vec")]
     pub enchant_ids: Vec<i32>,
-    pub lesser_enchant_ids: Option<Vec<i32>>, // Some enchants are lesser enchants, it would be useful to warn about them. Currently, these are only used for corruptions (TWW S2).
-    pub special_item_id: Option<Vec<i32>>,
+    #[serde(default="default_vec")]
+    pub lesser_enchant_ids: Vec<i32>, // Some enchants are lesser enchants, it would be useful to warn about them. Currently, these are only used for corruptions (TWW S2).
+    #[serde(default="default_vec")]
+    pub special_item_id: Vec<i32>,
     #[serde(default="default_false")]
     pub has_socket: bool,
     #[serde(default="default_vec")]
@@ -91,8 +93,10 @@ pub struct ExpansionSeasons {
     #[serde(default="default_i64")]
     pub season_start: i64,
     pub raids: Vec<ExpansionRaid>,
-    pub seasonal_gear: Option<Vec<ItemData>>, // Contains data for things such as D.I.S.C. belt, or things like seasonal enchants (horrific visions)
-    pub tier_gear_ids: Option<Vec<i32>>
+    #[serde(default="default_vec")]
+    pub seasonal_gear: Vec<ItemData>, // Contains data for things such as D.I.S.C. belt, or things like seasonal enchants (horrific visions)
+    #[serde(default="default_vec")]
+    pub tier_gear_ids: Vec<i32>, 
 }
 
 fn default_i64() -> i64 {

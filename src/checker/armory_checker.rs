@@ -339,9 +339,8 @@ impl ArmoryChecker {
             if enchantment_slot.is_none() {
                 let target_type = gear.1.inventory_type.gear_type.to_lowercase();
                 enchantment_slot = expansion.latest_season.as_ref()
-                    .and_then(|raid| raid.seasonal_gear.as_ref())
-                    .and_then(|gear_vec| {
-                        gear_vec.iter().find(|ench| {
+                    .and_then(|season| {
+                        season.seasonal_gear.iter().find(|ench| {
                             let mut matches = ench.slot == target_type;
                             if !matches {
                                 matches = ench.sub_slots.iter().any(|sub_slot_ref| {
@@ -388,9 +387,8 @@ impl ArmoryChecker {
             x.1 == enchants.slot
         });
 
-        let _binding = Vec::new();
         let binding = expansion.latest_season.clone().unwrap();
-        let seasonal_item = binding.seasonal_gear.as_ref().unwrap_or(&_binding).iter().find(|x| {
+        let seasonal_item = binding.seasonal_gear.iter().find(|x| {
             x.slot == enchants.slot  || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
         });
 
@@ -411,12 +409,12 @@ impl ArmoryChecker {
             let enchant = slot.enchantments.clone().unwrap();
             if item_options.0.require_latest == true {
                 if seasonal_item.is_some() && !seasonal_item.unwrap().enchant_ids.is_empty() {
-                    info!("Checking seasonal item for slot: {}", enchants.slot);
-                    let seasonal_enchant_ids = seasonal_item.clone().unwrap().enchant_ids.clone();
+                    info!("Checking seasonal enchant for slot: {}", enchants.slot);
+                    let seasonal_enchant_ids: Vec<i32> = seasonal_item.clone().unwrap().enchant_ids.clone();
                     let seasonal_lesser_enchant_ids = seasonal_item.clone().unwrap().lesser_enchant_ids.clone();
 
                     if item_options.0.require_greater == true {
-                        if enchant.iter().find(|x| seasonal_lesser_enchant_ids.is_some() && seasonal_lesser_enchant_ids.clone().unwrap().iter().find(|y| x.enchantment_id == **y).is_some()).is_some() {
+                        if enchant.iter().find(|x| seasonal_lesser_enchant_ids.iter().find(|y| x.enchantment_id == **y).is_some()).is_some() {
                             return format!("{} is enchanted with a \"lesser\" version of an enchant", slot.inventory_type.clone().gear_type.to_lowercase());
                         }
                     }
@@ -430,14 +428,15 @@ impl ArmoryChecker {
 
                 if enchant.iter().find(|x| enchants.enchant_ids.iter().find(|y| x.enchantment_id == **y ).is_some()).is_some() || 
                     (agnostic_item.is_some() && agnostic_item.unwrap().enchant_ids.iter().find(|y| enchant.iter().find(|x| x.enchantment_id == **y).is_some()).is_some()) {
-                    //return String::default();
+                    
                 } else if !enchants.enchant_ids.is_empty() {
                     return format!("{} is not enchanted with a \"{}\" enchant", slot.inventory_type.clone().gear_type.to_lowercase(), expansion.name);
                 }
             }
 
             if item_options.0.require_greater == true {
-                if enchant.iter().find(|x| enchants.lesser_enchant_ids.is_some() && enchants.lesser_enchant_ids.clone().unwrap().iter().find(|y| x.enchantment_id == **y).is_some()).is_some() {
+                if enchant.iter().find(|x| enchants.lesser_enchant_ids.iter().find(|y| x.enchantment_id == **y).is_some()).is_some() ||
+                    (agnostic_item.is_some() && agnostic_item.unwrap().lesser_enchant_ids.iter().find(|y| enchant.iter().find(|x| x.enchantment_id == **y).is_some()).is_some()) {
                     return format!("{} is enchanted with a \"lesser\" version of an enchant", slot.inventory_type.clone().gear_type.to_lowercase());
                 }
             }
@@ -518,8 +517,7 @@ impl ArmoryChecker {
         });
 
         let binding = expansion.latest_season.clone().unwrap();
-        let _binding = Vec::new();
-        let seasonal_item_opt: Option<&ItemData> = binding.seasonal_gear.as_ref().unwrap_or(&_binding).iter().find(|x| {
+        let seasonal_item_opt: Option<&ItemData> = binding.seasonal_gear.iter().find(|x| {
             x.slot == enchants.slot  || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
         });
 
@@ -555,8 +553,6 @@ impl ArmoryChecker {
             x.1 == enchants.slot
         });
 
-        let binding = Vec::new();
-        
         let agnostic_item = expansions.agnostic_gear_enchants.iter().find(|x| {
             x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
         });
@@ -565,16 +561,16 @@ impl ArmoryChecker {
             x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
         });
 
-        let seasonal_item = expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_gear.as_ref().unwrap_or(&binding).iter().find(|x| {
+        let seasonal_item = expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_gear.iter().find(|x| {
             x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
         });
 
         if let Some(enchant_options) = enchant_options_opt {
             let slot_name = slot.inventory_type.clone().gear_type.to_lowercase();
             if enchant_options.0.require_special_item == true {
-                if seasonal_item.is_some() && seasonal_item.unwrap().special_item_id.is_some() {
+                if seasonal_item.is_some() && !seasonal_item.unwrap().special_item_id.is_empty() {
                     info!("Checking seasonal item for slot: {}", enchants.slot);
-                    let special =  seasonal_item.unwrap().special_item_id.clone().unwrap();
+                    let special =  seasonal_item.unwrap().special_item_id.clone();
                     let found = special.iter().find(|&&x| {
                         x == slot.id
                     });
@@ -583,9 +579,9 @@ impl ArmoryChecker {
                         return format!("{} does not have a seasonal special item!", slot_name);
                     }
                 }
-                else if expansion_item.is_some() && expansion_item.unwrap().special_item_id.is_some() {
+                else if expansion_item.is_some() && !expansion_item.unwrap().special_item_id.is_empty() {
                     info!("Checking special expansion item for slot: {}", enchants.slot);
-                    let special =  expansion_item.unwrap().special_item_id.clone().unwrap();
+                    let special =  expansion_item.unwrap().special_item_id.clone();
                     let found = special.iter().find(|&&x| {
                         x == slot.id
                     });
@@ -594,9 +590,9 @@ impl ArmoryChecker {
                         return format!("{} does not have an expansion special item!", slot_name);
                     }
                 }
-                else if agnostic_item.is_some() && agnostic_item.unwrap().special_item_id.is_some() {
+                else if agnostic_item.is_some() && !agnostic_item.unwrap().special_item_id.is_empty() {
                     info!("Checking special expansion item for slot: {}", enchants.slot);
-                    let special =  agnostic_item.unwrap().special_item_id.clone().unwrap();
+                    let special =  agnostic_item.unwrap().special_item_id.clone();
                     let found = special.iter().find(|&&x| {
                         x == slot.id
                     });
@@ -938,10 +934,9 @@ impl ArmoryChecker {
         let mut count = 0;
         let binding = expansions.latest_expansion.clone().unwrap().latest_season.clone().unwrap();
         let tier_sets = binding.tier_gear_ids.clone();
-        if tier_sets.is_none() || tier_sets.clone().unwrap().is_empty() {
+        if tier_sets.is_empty() {
             return -1;
         }
-        let tier_sets = tier_sets.unwrap();
 
         armory.character.gear.iter().for_each(|x| {
             if tier_sets.iter().any(|y| x.1.id == *y) {

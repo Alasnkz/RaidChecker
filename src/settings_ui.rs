@@ -95,8 +95,8 @@ impl SettingsUi {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for item in settings.enchantments.as_array_mut().iter_mut() {
                             let seasonal_item = current_season.as_ref().and_then(|s| {
-                                if s.seasonal_gear.is_some() {
-                                    return s.seasonal_gear.as_ref().unwrap().iter().find(|x| x.slot == item.1);
+                                if !s.seasonal_gear.is_empty() {
+                                    return s.seasonal_gear.iter().find(|x| x.slot == item.1);
                                 }
                                 None
                             });
@@ -105,16 +105,16 @@ impl SettingsUi {
                             let proper_item = latest_expansion.gear_enchants.iter().find(|x| x.slot == item.1);
 
                             let has_enchant = (proper_item.is_some() && !proper_item.unwrap().enchant_ids.is_empty()) || (seasonal_item.is_some() && !seasonal_item.unwrap().enchant_ids.is_empty()) ||
-                                (seasonal_item.is_some() && seasonal_item.unwrap().lesser_enchant_ids.is_some() && !seasonal_item.unwrap().lesser_enchant_ids.as_ref().unwrap().is_empty()) ||
+                                (seasonal_item.is_some() && !seasonal_item.unwrap().lesser_enchant_ids.is_empty()) ||
                                 (agnostic_item.is_some() && !agnostic_item.unwrap().enchant_ids.is_empty());
 
                             let has_expansional_enchant = proper_item.is_some() && !proper_item.unwrap().enchant_ids.is_empty();
-                            let has_lesser_enchants = (proper_item.is_some() && proper_item.unwrap().lesser_enchant_ids.is_some() && !proper_item.unwrap().lesser_enchant_ids.as_ref().unwrap().is_empty()) || 
-                                (seasonal_item.is_some() && seasonal_item.unwrap().lesser_enchant_ids.is_some() && !seasonal_item.unwrap().lesser_enchant_ids.as_ref().unwrap().is_empty()) || 
-                                (agnostic_item.is_some() && agnostic_item.unwrap().lesser_enchant_ids.is_some() && !agnostic_item.unwrap().lesser_enchant_ids.as_ref().unwrap().is_empty());
+                            let has_lesser_enchants = (proper_item.is_some() && !proper_item.unwrap().lesser_enchant_ids.is_empty()) || 
+                                (seasonal_item.is_some() && !seasonal_item.unwrap().lesser_enchant_ids.is_empty()) || 
+                                (agnostic_item.is_some() && !agnostic_item.unwrap().lesser_enchant_ids.is_empty());
 
-                            let has_special_item = (proper_item.is_some() && proper_item.unwrap().special_item_id.is_some()) ||
-                                (seasonal_item.is_some() && seasonal_item.unwrap().special_item_id.is_some());
+                            let has_special_item = (proper_item.is_some() && !proper_item.unwrap().special_item_id.is_empty()) ||
+                                (seasonal_item.is_some() && !seasonal_item.unwrap().special_item_id.is_empty());
 
                             let has_socket = (proper_item.is_some() && proper_item.unwrap().has_socket) || 
                                 (seasonal_item.is_some() && seasonal_item.unwrap().has_socket);

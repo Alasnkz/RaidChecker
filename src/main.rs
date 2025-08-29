@@ -178,14 +178,14 @@ impl RaidHelperCheckerApp{
             }
         }
 
-        for item in self.expansions.latest_expansion.as_mut().unwrap().latest_season.clone().unwrap().seasonal_gear.unwrap().iter_mut() {
+        for item in self.expansions.latest_expansion.as_mut().unwrap().latest_season.clone().unwrap().seasonal_gear.iter_mut() {
             if item.release_time != 0 {
                 let release_time: DateTime<Utc> = Utc.timestamp_opt(item.release_time, 0).unwrap();
                 let now: DateTime<Utc> = Utc::now();
                 if release_time > now {
                     info!("{} {} gear {} has not launched yet, ignoring. Will activate on {}", self.expansions.latest_expansion.as_ref().unwrap().name, self.expansions.latest_expansion.clone().unwrap().latest_season.unwrap().seasonal_identifier, item.slot, release_time.format("%A, %B %d %Y").to_string());
-                    self.expansions.latest_expansion.as_mut().unwrap().seasons.last_mut().unwrap().seasonal_gear.as_mut().unwrap().retain(|x| x.slot != item.slot);
-                    self.expansions.latest_expansion.as_mut().unwrap().latest_season.as_mut().unwrap().seasonal_gear.as_mut().unwrap().retain(|x| x.slot != item.slot);
+                    self.expansions.latest_expansion.as_mut().unwrap().seasons.last_mut().unwrap().seasonal_gear.retain(|x| x.slot != item.slot);
+                    self.expansions.latest_expansion.as_mut().unwrap().latest_season.as_mut().unwrap().seasonal_gear.retain(|x| x.slot != item.slot);
                 }
             }
         }
