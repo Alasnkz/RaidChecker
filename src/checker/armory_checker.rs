@@ -717,12 +717,21 @@ impl ArmoryChecker {
                 info!("Checking category: {}", category.1.name);
                 if category.1.id == "raids" {
                     info!("Found raids category in achievements.");
+                    let mut achi_ids: Vec<(i32, i32)> = Vec::new();
                     for raid_check_id in raid_saved_check.iter() {
                         let raid = expansions.latest_expansion.as_ref().unwrap().find_raid_by_id(*raid_check_id.0);
                         if raid.is_some() {
                             if raid.unwrap().aotc_achievement_id == 0 && raid.unwrap().ce_achievement_id == 0 {
                                 info!("Skipping raid {} as it has no AOTC/CE achievements.", raid.unwrap().identifier);
                                 aotc_ce_status.insert(*raid_check_id.0, (raid.unwrap().identifier.clone(), AOTCStatus::Skipped));
+                            } else {
+                                let found = achi_ids.iter_mut().find(|x| x.0 == raid.unwrap().aotc_achievement_id || x.1 == raid.unwrap().ce_achievement_id).inspect(|x| {
+                                    info!("Already checking achievement IDs {} {} skipping duplicate for raid {}", x.0, x.1, raid.unwrap().identifier);
+                                    aotc_ce_status.insert(*raid_check_id.0, (raid.unwrap().identifier.clone(), AOTCStatus::Skipped));
+                                });
+                                if found.is_none() {
+                                    achi_ids.push((raid.unwrap().aotc_achievement_id, raid.unwrap().ce_achievement_id));
+                                }
                             }
                         }
                     }
@@ -736,7 +745,7 @@ impl ArmoryChecker {
                             (raid.aotc_achievement_id == achievement.id || raid.ce_achievement_id == achievement.id)
                         });
 
-                        if selected_raid.is_some() {
+                        if selected_raid.is_some() && aotc_ce_status.contains_key(selected_raid.unwrap().0) == false {
                             info!("Found AOTC/CE achievement: {} (ID: {})", achievement.name, achievement.id);
                             let selected_raid = selected_raid.unwrap();
                             let raid_summary = armory.summary.raids.get(*selected_raid.0 as usize);
@@ -763,7 +772,7 @@ impl ArmoryChecker {
                                         if achievement.id == ce_achievement_id {
                                             info!("Character CE has killed last boss on heroic.");
                                             aotc_ce_status.insert(*selected_raid.0, (raid_name.clone(), AOTCStatus::CuttingEdge(true, char_ce, true)));
-                                        } else {
+                                        } else if achievement.id == aotc_achievement_id {
                                             info!("Character has AOTC achievement.");
                                             aotc_ce_status.insert(*selected_raid.0, (raid_name.clone(), AOTCStatus::Character));
                                         }
