@@ -1,7 +1,7 @@
 {
-  "rhcu_version": "1.0.3",
+  "rhcu_version": "1.1.0",
   "modified": 1755098265,
-  "latest_expansion_identifier": "MN",
+  "latest_expansion_identifier": "TWW",
   "agnostic_gear_enchants": [
     {
       "slot": "weapon",
@@ -301,8 +301,10 @@
                 "The Silken Court",
                 "Queen Ansurek"
               ],
-              "aotc_achievement_id": 40253,
-              "ce_achievement_id": 40254
+              "achievements": {
+                "aotc": 40253,
+                "ce": 40254
+              }
             }
           ]
         },
@@ -341,9 +343,10 @@
                 "Mug'Zee",
                 "Chrome King Gallywix"
               ],
-              "aotc_achievement_id": 41298,
-              "ce_achievement_id": 41297,
-
+              "achievements": {
+                "aotc": 41298,
+                "ce": 41297
+              },
               "reputation": {
                 "raid_rep_slug": "gallagio-loyalty-rewards-club",
                 "raid_buff_renowns": [
@@ -433,8 +436,11 @@
                 "Nexus-King Salhadaar",
                 "Dimensius, the All-Devouring"
               ],
-              "aotc_achievement_id": 41624,
-              "ce_achievement_id": 41625,
+
+              "achievements": {
+                "aotc": 41624,
+                "ce": 41625
+              },
 
               "reputation": {
                 "raid_rep_slug": "manaforge-vandals",
@@ -523,8 +529,11 @@
                 "Unknown Boss Name 5",
                 "Unknown Boss Name 6"
               ],
-              "aotc_achievement_id": 0,
-              "ce_achievement_id": 0
+              "achievements": {
+                "aotc": 0,
+                "ce": 0,
+                "dependency_id": 2
+              }
             },
 
             {
@@ -551,8 +560,12 @@
               "boss_names": [
                 "Unknown Boss Name"
               ],
-              "aotc_achievement_id": 0,
-              "ce_achievement_id": 0
+              
+              "achievement": {
+                "aotc": 0,
+                "ce": 0,
+                "dependency_id": 2
+              }
             },
 
             {
@@ -581,8 +594,10 @@
                 "Unknown Boss Name 1",
                 "Unknown Boss Name 2"
               ],
-              "aotc_achievement_id": 0,
-              "ce_achievement_id": 0
+              "achievements": {
+                "aotc": 0,
+                "ce": 0
+              }
             }
           ],
           "season_start": 0

@@ -152,7 +152,7 @@ impl RaidHelperCheckerApp{
                         season_id = season.seasonal_identifier.clone();
                         season_ts_start = season.season_start;
                     } else {
-                        info!("{} {} has not started yet, ignoring. Will activate on {}", self.expansions.latest_expansion_identifier, season.seasonal_identifier, season_start.format("%A, %B %d %Y").to_string());
+                        info!("{} {} has not started yet, ignoring. Will activate on {}", self.expansions.latest_expansion.as_ref().unwrap().identifier, season.seasonal_identifier, season_start.format("%A, %B %d %Y").to_string());
                         self.expansions.latest_expansion.as_mut().unwrap().seasons.retain(|x| x.seasonal_identifier != season.seasonal_identifier);                       
                     }
                 } else {

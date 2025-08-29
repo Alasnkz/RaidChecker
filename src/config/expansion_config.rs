@@ -50,6 +50,26 @@ pub struct RaidReputation {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct RaidAchievements {
+    #[serde(default="default_i32_0")]
+    pub aotc: i32,
+    #[serde(default="default_i32_0")]
+    pub ce: i32,
+    #[serde(default="default_i32")]
+    pub dependency_id: i32, // Raid ID that actually holds the "AOTC" achievement, for tiers that have multiple raids but has one final boss.
+}
+
+impl Default for RaidAchievements {
+    fn default() -> Self {
+        Self {
+            aotc: 0,
+            ce: 0,
+            dependency_id: -1
+        }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ExpansionRaid {
     #[serde(default="default_i64_0")]
     pub release_time: i64,
@@ -57,14 +77,16 @@ pub struct ExpansionRaid {
     pub difficulty: Vec<RaidDifficulty>,
     pub id: i32,
     pub boss_names: Vec<String>,
-    #[serde(default="default_i32")]
-    pub aotc_achievement_id: i32,
-    #[serde(default="default_i32")]
-    pub ce_achievement_id: i32,
+    #[serde(default)]
+    pub achievements: RaidAchievements,
     pub reputation: Option<RaidReputation>,
 }
 
 fn default_i64_0() -> i64 {
+    0
+}
+
+fn default_i32_0() -> i32 {
     0
 }
 
@@ -80,8 +102,7 @@ impl Default for ExpansionRaid {
             difficulty: Vec::new(),
             id: -1,
             boss_names: Vec::new(),
-            aotc_achievement_id: -1,
-            ce_achievement_id: -1,
+            achievements: RaidAchievements::default(),
             reputation: None,
         }
     }
