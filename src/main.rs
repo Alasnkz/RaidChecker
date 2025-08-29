@@ -143,7 +143,7 @@ impl RaidHelperCheckerApp{
 
         let mut season_ts_start = 0;
         let mut season_id = String::new();
-        for season in self.expansions.latest_expansion.as_ref().unwrap().seasons.iter() {
+        for season in self.expansions.latest_expansion.clone().unwrap().seasons.iter() {
             if season.season_start >= season_ts_start {
                 if season.season_start != 0 {
                     let season_start: DateTime<Utc> = Utc.timestamp_opt(season.season_start, 0).unwrap();
@@ -153,6 +153,7 @@ impl RaidHelperCheckerApp{
                         season_ts_start = season.season_start;
                     } else {
                         info!("{} {} has not started yet, ignoring. Will activate on {}", self.expansions.latest_expansion_identifier, season.seasonal_identifier, season_start.format("%A, %B %d %Y").to_string());
+                        self.expansions.latest_expansion.as_mut().unwrap().seasons.retain(|x| x.seasonal_identifier != season.seasonal_identifier);                       
                     }
                 } else {
                     season_id = season.seasonal_identifier.clone();
@@ -163,6 +164,31 @@ impl RaidHelperCheckerApp{
         self.expansions.latest_expansion.as_mut().unwrap().latest_season = self.expansions.latest_expansion.as_ref().unwrap().seasons.iter().find(|x| x.seasonal_identifier == season_id).cloned();
         self.win_title = format!("Raid Checker ({} {})", self.expansions.latest_expansion.as_ref().unwrap().name, self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap_or(&ExpansionSeasons::default()).seasonal_identifier);
         self.win_title_change = true;
+
+        for raid in self.expansions.latest_expansion.clone().unwrap().latest_season.unwrap().raids.iter() {
+            if raid.release_time != 0 {
+                let raid_launch: DateTime<Utc> = Utc.timestamp_opt(raid.release_time, 0).unwrap();
+                let now: DateTime<Utc> = Utc::now();
+                if raid_launch > now {
+                    info!("{} raid {} ({}) has not launched yet, ignoring. Will activate on {}", self.expansions.latest_expansion.as_ref().unwrap().name, raid.identifier, self.expansions.latest_expansion.clone().unwrap().latest_season.unwrap().seasonal_identifier, raid_launch.format("%A, %B %d %Y").to_string());
+                    self.expansions.latest_expansion.as_mut().unwrap().seasons.last_mut().unwrap().raids.retain(|x| x.identifier != raid.identifier);
+                    self.expansions.latest_expansion.as_mut().unwrap().latest_season.as_mut().unwrap().raids.retain(|x| x.identifier != raid.identifier);
+                    //as_mut().unwrap().raids.retain(|x| x.identifier != raid.identifier);
+                }
+            }
+        }
+
+        for item in self.expansions.latest_expansion.as_mut().unwrap().latest_season.clone().unwrap().seasonal_gear.unwrap().iter_mut() {
+            if item.release_time != 0 {
+                let release_time: DateTime<Utc> = Utc.timestamp_opt(item.release_time, 0).unwrap();
+                let now: DateTime<Utc> = Utc::now();
+                if release_time > now {
+                    info!("{} {} gear {} has not launched yet, ignoring. Will activate on {}", self.expansions.latest_expansion.as_ref().unwrap().name, self.expansions.latest_expansion.clone().unwrap().latest_season.unwrap().seasonal_identifier, item.slot, release_time.format("%A, %B %d %Y").to_string());
+                    self.expansions.latest_expansion.as_mut().unwrap().seasons.last_mut().unwrap().seasonal_gear.as_mut().unwrap().retain(|x| x.slot != item.slot);
+                    self.expansions.latest_expansion.as_mut().unwrap().latest_season.as_mut().unwrap().seasonal_gear.as_mut().unwrap().retain(|x| x.slot != item.slot);
+                }
+            }
+        }
     }
 }
 

@@ -143,6 +143,13 @@ impl SignUpsUI {
                         let buff_colour: [u8; 4] = settings.buff_colour.unwrap();
                         return egui::Color32::from_rgb(buff_colour[0], buff_colour[1], buff_colour[2]);
                     }
+                },
+
+                PriorityChecks::MissingTier => {
+                    if player.tier_count != -1 && player.tier_count < 4 {
+                        let tier_colour: [u8; 4] = settings.missing_tier_colour.unwrap();
+                        return egui::Color32::from_rgb(tier_colour[0], tier_colour[1], tier_colour[2]);
+                    }
                 }
             }
         }
@@ -152,9 +159,6 @@ impl SignUpsUI {
 
     pub fn draw_summary(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, primary_people: &Vec<PlayerData>, queued_people: &Vec<PlayerData>) {
         let mut bad = 0;
-        let mut aotc = 0;
-        let mut cutting_edge = 0;
-        let mut no_aotc = 0;
 
         let mut bad_primary = Vec::new();
         let mut bad_secondary = Vec::new();
@@ -393,6 +397,10 @@ impl SignUpsUI {
                 ui.label("");
                 ui.label("");
             }
+        }
+
+        if player.tier_count != -1{
+            ui.label(format!("{} has {} tier pieces.", player.name.clone(), player.tier_count));
         }
 
         for (_, (raid_name, aotc_status)) in player.aotc_status.iter() {

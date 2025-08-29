@@ -512,6 +512,25 @@ impl SettingsUi {
                     }
                 });
 
+                ui.horizontal(|ui| {
+                    ui.label("Missing tier colour");
+                    let s_buff_colour = settings.missing_tier_colour.unwrap_or([255, 0, 0, 255]);
+                    let mut buff_colour = egui::Rgba::from_rgba_unmultiplied(
+                        s_buff_colour[0] as f32 / 255.0,
+                        s_buff_colour[1] as f32 / 255.0,
+                        s_buff_colour[2] as f32 / 255.0,
+                        1.0,
+                    );
+                
+                    if egui::color_picker::color_edit_button_rgba(ui, &mut buff_colour, egui::color_picker::Alpha::Opaque).changed() {
+                        settings.missing_tier_colour = Some([
+                            (buff_colour[0] * 255.0).round() as u8,
+                            (buff_colour[1] * 255.0).round() as u8,
+                            (buff_colour[2] * 255.0).round() as u8,
+                            255,
+                        ]);
+                    }
+                });
 
                 ui.horizontal(|ui| {
                     if ui.button("Close").clicked() {

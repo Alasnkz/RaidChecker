@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, fs::{self, File}, io::{self, Write}, path::Path};
 
+use tracing::error;
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct EnchantmentSlotSetting {
     pub require_slot: bool,
@@ -26,6 +28,7 @@ pub enum PriorityChecks {
     Unkilled = 4,
     SpecialItem = 5,
     BadSocket = 6,
+    MissingTier = 7,
 }
 
 impl PriorityChecks {
@@ -38,6 +41,7 @@ impl PriorityChecks {
             PriorityChecks::Unkilled => "Bosses not killed",
             PriorityChecks::SpecialItem => "Missing Special Item",
             PriorityChecks::BadSocket => "Sockets Missing",
+            PriorityChecks::MissingTier => "Missing Tier",
         }
     }
 }
@@ -151,6 +155,7 @@ pub struct Settings {
     pub bad_gear_colour: Option<[u8; 4]>,
     pub bad_socket_colour: Option<[u8; 4]>,
     pub bad_special_item_colour: Option<[u8; 4]>,
+    pub missing_tier_colour: Option<[u8; 4]>,
     pub buff_colour: Option<[u8; 4]>,
     #[serde(default = "default_check_priority")]
     pub check_priority: Vec<PriorityChecks>,
@@ -165,6 +170,7 @@ fn default_check_priority() -> Vec<PriorityChecks> {
         PriorityChecks::SpecialItem,
         PriorityChecks::BadSocket,
         PriorityChecks::RaidBuff,
+        PriorityChecks::MissingTier,
     ]
 }
 
@@ -182,6 +188,7 @@ impl Default for Settings {
             bad_gear_colour: Some([0x8B, 0x0, 0x0, 0xFF]),
             bad_socket_colour: Some([0x8B, 0x0, 0x0, 0xFF]),
             bad_special_item_colour: Some([0x8B, 0x0, 0x0, 0xFF]),
+            missing_tier_colour: Some([218, 0, 255, 255]),
             buff_colour: Some([0xFF, 0xA5, 0x0, 0xFF]),
             check_priority: vec![
                 PriorityChecks::SavedKills,
@@ -214,7 +221,7 @@ impl Settings {
                 Ok(config) => { Ok(config) }
 
                 Err(err) => {
-                    eprintln!("Error parsing config: {}. Creating new default config.", err);
+                    error!("Error parsing config: {}. Creating new default config.", err);
                     Self::create_default(path)
                 }
             }.unwrap();
@@ -251,12 +258,20 @@ impl Settings {
                 settings.bad_special_item_colour = Some([0x8B, 0x0, 0x0, 0xFF]);
             }
 
+            if settings.missing_tier_colour == None {
+                settings.missing_tier_colour = Some([218, 0, 255, 255]);
+            }
+
             if settings.check_priority.iter().find(|x| **x == PriorityChecks::BadSocket).is_none() {
                 settings.check_priority.push(PriorityChecks::BadSocket);
             }
 
             if settings.check_priority.iter().find(|x: &&PriorityChecks| **x == PriorityChecks::SpecialItem).is_none() {
                 settings.check_priority.push(PriorityChecks::SpecialItem);
+            }
+
+            if settings.check_priority.iter().find(|x: &&PriorityChecks| **x == PriorityChecks::MissingTier).is_none() {
+                settings.check_priority.push(PriorityChecks::MissingTier);
             }
             Ok(settings)
         } else {

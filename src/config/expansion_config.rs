@@ -2,8 +2,12 @@ use std::fs::{self, File};
 use std::path::Path;
 use std::io::{self, Write};
 
+use tracing::error;
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
-pub struct ExpansionEnchants {
+pub struct ItemData {
+    #[serde(default="default_i64_0")]
+    pub release_time: i64,
     pub slot: String,
     #[serde(default="default_vec")]
     pub sub_slots: Vec<String>, // things like TWOHWEAPON... is a weapon.
@@ -45,6 +49,8 @@ pub struct RaidReputation {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ExpansionRaid {
+    #[serde(default="default_i64_0")]
+    pub release_time: i64,
     pub identifier: String,
     pub difficulty: Vec<RaidDifficulty>,
     pub id: i32,
@@ -56,6 +62,10 @@ pub struct ExpansionRaid {
     pub reputation: Option<RaidReputation>,
 }
 
+fn default_i64_0() -> i64 {
+    0
+}
+
 fn default_i32() -> i32 {
     -1
 }
@@ -63,6 +73,7 @@ fn default_i32() -> i32 {
 impl Default for ExpansionRaid {
     fn default() -> Self {
         Self {
+            release_time: 0,
             identifier: "Unknown".to_owned(),
             difficulty: Vec::new(),
             id: -1,
@@ -80,7 +91,8 @@ pub struct ExpansionSeasons {
     #[serde(default="default_i64")]
     pub season_start: i64,
     pub raids: Vec<ExpansionRaid>,
-    pub seasonal_gear: Option<Vec<ExpansionEnchants>> // Contains data for things such as D.I.S.C. belt, or things like seasonal enchants (horrific visions)
+    pub seasonal_gear: Option<Vec<ItemData>>, // Contains data for things such as D.I.S.C. belt, or things like seasonal enchants (horrific visions)
+    pub tier_gear_ids: Option<Vec<i32>>
 }
 
 fn default_i64() -> i64 {
@@ -93,7 +105,7 @@ pub struct Expansions {
     pub identifier: String, // <-- TWW, MN, TLT
     pub reputation_slug: String,
     pub gear_embelishment_bonus_id: i32,
-    pub gear_enchants: Vec<ExpansionEnchants>,
+    pub gear_enchants: Vec<ItemData>,
     pub seasons: Vec<ExpansionSeasons>,
     #[serde(default="default_i64")]
     pub expansion_start: i64,
@@ -129,7 +141,7 @@ pub struct ExpansionsConfig {
     pub modified: u64,
     pub latest_expansion_identifier: String,
     #[serde(default="default_vec")]
-    pub agnostic_gear_enchants: Vec<ExpansionEnchants>,
+    pub agnostic_gear_enchants: Vec<ItemData>,
     pub expansions: Vec<Expansions>,
     pub latest_expansion: Option<Expansions>
 }
@@ -163,7 +175,7 @@ impl ExpansionsConfig {
             match serde_json::from_str(&content) {
                 Ok(config) => Ok(config),
                 Err(err) => {
-                    eprintln!("Error parsing config: {}. Creating new default config.", err);
+                    error!("Error parsing config: {}. Creating new default config.", err);
                     Self::create_default(path)
                 }
             }

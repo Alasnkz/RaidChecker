@@ -235,6 +235,7 @@ impl RaidSheet {
                         saved_bosses: Vec::new(),
                         aotc_status: BTreeMap::new(),
                         buff_status: BTreeMap::new(),
+                        tier_count: -1,
                         skip_reason: Some("Could not find player".to_owned()),
                         armory_url: "".to_owned(),
                         queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" 
