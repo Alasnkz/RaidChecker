@@ -93,7 +93,7 @@ impl SettingsUi {
                 ui.vertical(|ui| {
                     ui.add(egui::Slider::new(&mut settings.embelishments, 0..=2).text("Embelishments required"));
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        for item in settings.enchantments.as_array_mut().iter_mut() {
+                        for item in settings.slots.as_array_mut().iter_mut() {
                             let seasonal_item = current_season.as_ref().and_then(|s| {
                                 if !s.seasonal_slot_data.is_empty() {
                                     return s.seasonal_slot_data.iter().find(|x| x.slot == item.1);
