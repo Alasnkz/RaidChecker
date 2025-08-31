@@ -20,4 +20,5 @@ target/
 config.json
 last_raid.json
 RaidChecker.log
+done.txt
 cargo

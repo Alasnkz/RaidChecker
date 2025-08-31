@@ -95,14 +95,14 @@ impl SettingsUi {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for item in settings.enchantments.as_array_mut().iter_mut() {
                             let seasonal_item = current_season.as_ref().and_then(|s| {
-                                if !s.seasonal_gear.is_empty() {
-                                    return s.seasonal_gear.iter().find(|x| x.slot == item.1);
+                                if !s.seasonal_slot_data.is_empty() {
+                                    return s.seasonal_slot_data.iter().find(|x| x.slot == item.1);
                                 }
                                 None
                             });
 
-                            let agnostic_item = expansions.agnostic_gear_enchants.iter().find(|x| x.slot == item.1);
-                            let proper_item = latest_expansion.gear_enchants.iter().find(|x| x.slot == item.1);
+                            let agnostic_item = expansions.agnostic_slot_data.iter().find(|x| x.slot == item.1);
+                            let proper_item = latest_expansion.slot_data.iter().find(|x| x.slot == item.1);
 
                             let has_enchant = (proper_item.is_some() && !proper_item.unwrap().enchant_ids.is_empty()) || (seasonal_item.is_some() && !seasonal_item.unwrap().enchant_ids.is_empty()) ||
                                 (seasonal_item.is_some() && !seasonal_item.unwrap().lesser_enchant_ids.is_empty()) ||

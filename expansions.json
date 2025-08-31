@@ -2,7 +2,7 @@
   "rhcu_version": "1.1.0",
   "modified": 1755098265,
   "latest_expansion_identifier": "TWW",
-  "agnostic_gear_enchants": [
+  "agnostic_slot_data": [
     {
       "slot": "weapon",
       "sub_slots": [
@@ -26,7 +26,7 @@
       "reputation_slug": "the-war-within",
       "expansion_start": 1,
       "gear_embelishment_bonus_id": 8960,
-      "gear_enchants": [
+      "slot_data": [
         {
           "slot": "weapon",
           "sub_slots": [
@@ -360,7 +360,7 @@
             }
           ],
 
-          "seasonal_gear": [
+          "seasonal_slot_data": [
             {
               "slot": "head",
               "sub_slots": [],
@@ -454,7 +454,7 @@
               }
             }
           ],
-          "seasonal_gear": [
+          "seasonal_slot_data": [
             {
               "slot": "cloak",
               "sub_slots": ["back"],
@@ -495,7 +495,7 @@
       "expansion_start": 9999999999,
       "reputation_slug": "midnight",
       "gear_embelishment_bonus_id": 0,
-      "gear_enchants": [],
+      "slot_data": [],
       "seasons": [
         {
           "seasonal_identifier": "Season 1",
@@ -609,7 +609,7 @@
       "identifier": "TLT",
       "reputation_slug": "the-last-titan",
       "gear_embelishment_bonus_id": 0,
-      "gear_enchants": [],
+      "slot_data": [],
       "seasons": [
         {
           "seasonal_identifier": "Season 1",

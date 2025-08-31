@@ -6,7 +6,7 @@ use reqwest::blocking::Client;
 use serde::Deserialize;
 use tracing::{error, info, warn};
 
-use crate::config::{self, expansion_config::{ItemData, Expansions, ExpansionsConfig, RaidDifficulty}, settings::{EnchantmentSlotSetting, RequiredRaid, RequiredRaidDifficulty, Settings}};
+use crate::config::{self, expansion_config::{ItemData, Expansion, ExpansionsConfig, RaidDifficulty}, settings::{EnchantmentSlotSetting, RequiredRaid, RequiredRaidDifficulty, Settings}};
 
 #[allow(dead_code)]
 pub struct ArmoryChecker {}
@@ -328,7 +328,7 @@ impl ArmoryChecker {
                 }
             }
 
-            let mut enchantment_slot = expansion.gear_enchants.iter().find(|x| {
+            let mut enchantment_slot = expansion.slot_data.iter().find(|x| {
                 let mut mtch = x.slot == gear.1.inventory_type.gear_type.to_lowercase();
                 if mtch == false {
                     mtch = x.sub_slots.iter().find(|y| **y == gear.1.inventory_type.gear_type.to_lowercase()).is_some();
@@ -340,7 +340,7 @@ impl ArmoryChecker {
                 let target_type = gear.1.inventory_type.gear_type.to_lowercase();
                 enchantment_slot = expansion.latest_season.as_ref()
                     .and_then(|season| {
-                        season.seasonal_gear.iter().find(|ench| {
+                        season.seasonal_slot_data.iter().find(|ench| {
                             let mut matches = ench.slot == target_type;
                             if !matches {
                                 matches = ench.sub_slots.iter().any(|sub_slot_ref| {
@@ -363,7 +363,7 @@ impl ArmoryChecker {
                 }
 
                 // Check for sockets (if needed)
-                let str = Self::check_gear_socket(&expansion, &gear.1, enchantment_slot.unwrap(), &settings);
+                let str = Self::check_gear_socket(&expansions, &gear.1, enchantment_slot.unwrap(), &settings);
                 if str.len() > 0 {
                     info!("{str}");
                     socket_vec.push(str);
@@ -380,7 +380,7 @@ impl ArmoryChecker {
         (enchant_vec, socket_vec, special_item, embelishments)
     }
 
-    fn check_enchant_slot(expansion: &Expansions, slot: &CharacterGear, enchants: &ItemData, settings: &Settings, expansions: &config::expansion_config::ExpansionsConfig) -> String {
+    fn check_enchant_slot(expansion: &Expansion, slot: &CharacterGear, enchants: &ItemData, settings: &Settings, expansions: &config::expansion_config::ExpansionsConfig) -> String {
         info!("Checking enchant slot: {}", enchants.slot);
         let binding = settings.enchantments.as_array();
         let item_options_opt = binding.iter().find(|x| {
@@ -388,11 +388,11 @@ impl ArmoryChecker {
         });
 
         let binding = expansion.latest_season.clone().unwrap();
-        let seasonal_item = binding.seasonal_gear.iter().find(|x| {
+        let seasonal_item = binding.seasonal_slot_data.iter().find(|x| {
             x.slot == enchants.slot  || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
         });
 
-        let agnostic_item = expansions.agnostic_gear_enchants.iter().find(|x| {
+        let agnostic_item = expansions.agnostic_slot_data.iter().find(|x| {
             x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
         });
 
@@ -445,17 +445,17 @@ impl ArmoryChecker {
         return String::default();
     }
     
-    fn gear_socket_check(slot: &CharacterGear, enchants: &ItemData, options: (EnchantmentSlotSetting, &str)) -> String {
+    fn gear_socket_check(gear: &CharacterGear, slot: &ItemData, options: &(EnchantmentSlotSetting, &str)) -> String {
         let required_sockets = options.0.require_sockets;
         let mut bad_str = "".to_string();
-        let sockets = slot.sockets.as_ref().map_or(0, |s| s.len()) as i32;
-        let slot_name = slot.inventory_type.clone().gear_type.to_lowercase();
+        let sockets = gear.sockets.as_ref().map_or(0, |s| s.len()) as i32;
+        let slot_name = gear.inventory_type.clone().gear_type.to_lowercase();
 
         if required_sockets > sockets {
             bad_str = format!("{} is missing {} socket{}", slot_name, required_sockets - sockets, if required_sockets - sockets > 1 { "s" } else { "" });
         }
-        if slot.sockets.is_some() {    
-            let count = slot.sockets.iter().flatten().filter(|s| s._item.is_some()).count() as i32;
+        if gear.sockets.is_some() {    
+            let count = gear.sockets.iter().flatten().filter(|s| s._item.is_some()).count() as i32;
             if count < required_sockets {
                 if bad_str != "" {
                     bad_str += "\n\t";
@@ -465,7 +465,7 @@ impl ArmoryChecker {
         }
 
         if options.0.require_greater_socket == true {
-            if slot.sockets.is_some() && slot.sockets.clone().unwrap().iter().find(|x| x._item.is_some() && enchants.greater_socket_item.iter().find(|y| x._item.as_ref().unwrap()._id as i32 == **y).is_some()).is_some() {
+            if gear.sockets.is_some() && gear.sockets.clone().unwrap().iter().find(|x| x._item.is_some() && slot.greater_socket_item.iter().find(|y| x._item.as_ref().unwrap()._id as i32 == **y).is_some()).is_some() {
                 return bad_str;
             } else {
                 if bad_str != "" {
@@ -477,60 +477,40 @@ impl ArmoryChecker {
         return bad_str;
     }
 
-    fn gear_socket_seasonal_check(slot: &CharacterGear, options: &EnchantmentSlotSetting, seasonal_item: (ItemData, &str)) -> String {
-        let mut bad_str = "".to_string();
-        let sockets = slot.sockets.as_ref().map_or(0, |s| s.len()) as i32;
-        let slot_name = slot.inventory_type.clone().gear_type.to_lowercase();
-        let required_sockets = options.require_sockets;
+    fn check_gear_socket(expansions: &ExpansionsConfig, gear: &CharacterGear, item: &ItemData, settings: &Settings) -> String {
+        info!("Checking gear socket for slot: {}", item.slot);
 
-        if required_sockets > sockets {
-            bad_str = format!("{} is missing {} socket{}", slot_name, required_sockets - sockets, if required_sockets - sockets > 1 { "s" } else { "" });
-        }
-        if slot.sockets.is_some() {    
-            let count = slot.sockets.iter().flatten().filter(|s| s._item.is_some()).count() as i32;
-            if count < sockets {
-                if bad_str != "" {
-                    bad_str += "\n\t";
-                }
-                bad_str = format!("{}{} has {} socket{} that are not filled with a gem", bad_str, slot_name, sockets - count, if sockets - count > 1 { "s" } else { "" });
-            }
+        if expansions.latest_expansion.is_none() {
+            error!("Latest expansion is referencing nothing!");
+            return String::default();
         }
 
-        if options.require_greater_socket == true {
-            if slot.sockets.is_some() && slot.sockets.clone().unwrap().iter().find(|x| x._item.is_some() && seasonal_item.0.greater_socket_item.iter().find(|y| x._item.as_ref().unwrap()._id as i32 == **y).is_some()).is_some() {
-                return bad_str;
-            } else {
-                if bad_str != "" {
-                    bad_str += "\n\t";
-                }
-                return format!("{}{} does not have a greater gem socketed!", bad_str, slot_name);
-            }
-        }
-        return bad_str;
-    }
-
-    fn check_gear_socket(expansion: &Expansions, slot: &CharacterGear, enchants: &ItemData, settings: &Settings) -> String {
-        info!("Checking gear socket for slot: {}", enchants.slot);
         let binding = settings.enchantments.as_array();
         let enchant_options_opt = binding.iter().find(|x| {
-            x.1 == enchants.slot
+            x.1 == item.slot
         });
 
-        let binding = expansion.latest_season.clone().unwrap();
-        let seasonal_item_opt: Option<&ItemData> = binding.seasonal_gear.iter().find(|x| {
-            x.slot == enchants.slot  || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
+        let expansion = expansions.latest_expansion.as_ref().unwrap();
+
+        let agnostic_slot_opt = expansions.agnostic_slot_data.iter().find(|x| {
+            x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
         });
 
-        let mut bad_retval = String::default();
-        
+        let expansion_slot_opt = expansion.slot_data.iter().find(|x| {
+            x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
+        });
 
-        if let Some(enchant_options) = enchant_options_opt {
-            if let Some(seasonal_item) = seasonal_item_opt {
-                info!("Checking socket for seasonal slot: {}", enchants.slot);
+        let seasonal_slot_opt: Option<&ItemData> = expansion.latest_season.as_ref().unwrap().seasonal_slot_data.iter().find(|x| {
+            x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
+        });
+
+        if let Some(slot_options) = enchant_options_opt {
+            if let Some(seasonal_item) = seasonal_slot_opt {
+                info!("Checking socket for seasonal slot: {}", item.slot);
                 if seasonal_item.has_socket == true {
                     let seasonal_sockets = seasonal_item.max_sockets;
                     if seasonal_sockets > 0 {
-                        bad_retval = Self::gear_socket_seasonal_check(slot, &enchant_options.0, (seasonal_item.clone(), enchants.slot.as_str()));
+                        let bad_retval = Self::gear_socket_check(gear, seasonal_item, slot_options);
                         if bad_retval.len() > 0 {
                             return bad_retval;
                         }
@@ -538,8 +518,34 @@ impl ArmoryChecker {
                 }
             }
 
-            if enchants.has_socket == true {
-                return Self::gear_socket_check(slot, enchants, (enchant_options.0.clone(), enchants.slot.as_str()));
+            if let Some(expansion_slot) = expansion_slot_opt {
+                info!("Checking socket status for expansion slot: {}", item.slot);
+                if expansion_slot.has_socket == true {
+                    let sockets = expansion_slot.max_sockets;
+                    if sockets > 0 {
+                        let bad_retval = Self::gear_socket_check(gear, expansion_slot, slot_options);
+                        if bad_retval.len() > 0 {
+                            return bad_retval;
+                        }
+                    }
+                }
+            }
+
+            if let Some(agnostic_slot) = agnostic_slot_opt {
+                info!("Checking socket status for agnostic slot: {}", item.slot);
+                if agnostic_slot.has_socket == true {
+                    let sockets = agnostic_slot.max_sockets;
+                    if sockets > 0 {
+                        let bad_retval = Self::gear_socket_check(gear, agnostic_slot, slot_options);
+                        if bad_retval.len() > 0 {
+                            return bad_retval;
+                        }
+                    }
+                }
+            }
+
+            if item.has_socket == true {
+                return Self::gear_socket_check(gear, item, slot_options);
             }  
         }
         
@@ -553,15 +559,15 @@ impl ArmoryChecker {
             x.1 == enchants.slot
         });
 
-        let agnostic_item = expansions.agnostic_gear_enchants.iter().find(|x| {
+        let agnostic_item = expansions.agnostic_slot_data.iter().find(|x| {
             x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
         });
 
-        let expansion_item = expansions.latest_expansion.as_ref().unwrap().gear_enchants.iter().find(|x| {
+        let expansion_item = expansions.latest_expansion.as_ref().unwrap().slot_data.iter().find(|x| {
             x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
         });
 
-        let seasonal_item = expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_gear.iter().find(|x| {
+        let seasonal_item = expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_slot_data.iter().find(|x| {
             x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
         });
 
@@ -641,7 +647,6 @@ impl ArmoryChecker {
             }
 
             let raid_check = raid_check.unwrap();
-            let raid_id = check_raid_ids.0;
             let unique_difficulties: Vec<_> = raid_check.difficulties
                 .iter()
                 .filter(|x| seen.insert(*x))

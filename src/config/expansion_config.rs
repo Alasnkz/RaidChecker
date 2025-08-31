@@ -115,7 +115,7 @@ pub struct ExpansionSeasons {
     pub season_start: i64,
     pub raids: Vec<ExpansionRaid>,
     #[serde(default="default_vec")]
-    pub seasonal_gear: Vec<ItemData>, // Contains data for things such as D.I.S.C. belt, or things like seasonal enchants (horrific visions)
+    pub seasonal_slot_data: Vec<ItemData>, // Contains data for things such as D.I.S.C. belt, or things like seasonal enchants (horrific visions)
     #[serde(default="default_vec")]
     pub tier_gear_ids: Vec<i32>, 
 }
@@ -125,12 +125,12 @@ fn default_i64() -> i64 {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub struct Expansions {
+pub struct Expansion {
     pub name: String,
     pub identifier: String, // <-- TWW, MN, TLT
     pub reputation_slug: String,
     pub gear_embelishment_bonus_id: i32,
-    pub gear_enchants: Vec<ItemData>,
+    pub slot_data: Vec<ItemData>,
     pub seasons: Vec<ExpansionSeasons>,
     #[serde(default="default_i64")]
     pub expansion_start: i64,
@@ -138,14 +138,14 @@ pub struct Expansions {
     pub latest_season: Option<ExpansionSeasons>,
 }
 
-impl Expansions {
+impl Expansion {
     pub fn find_raid_by_id(&self, raid_id: i32) -> Option<&ExpansionRaid> {
         self.seasons.iter()
             .find_map(|season| season.raids.iter().find(|raid| raid.id == raid_id))
     }
 }
 
-impl Default for Expansions {
+impl Default for Expansion {
     fn default() -> Self {
         Self {
             name: "Unknown".to_owned(),
@@ -153,7 +153,7 @@ impl Default for Expansions {
             reputation_slug: "Unknown".to_owned(),
             expansion_start: 0,
             gear_embelishment_bonus_id: -1,
-            gear_enchants: Vec::new(),
+            slot_data: Vec::new(),
             seasons: Vec::new(),
             latest_season: None,
         }
@@ -166,9 +166,9 @@ pub struct ExpansionsConfig {
     pub modified: u64,
     pub latest_expansion_identifier: String,
     #[serde(default="default_vec")]
-    pub agnostic_gear_enchants: Vec<ItemData>,
-    pub expansions: Vec<Expansions>,
-    pub latest_expansion: Option<Expansions>
+    pub agnostic_slot_data: Vec<ItemData>,
+    pub expansions: Vec<Expansion>,
+    pub latest_expansion: Option<Expansion>
 }
 
 impl Default for ExpansionsConfig {
@@ -177,7 +177,7 @@ impl Default for ExpansionsConfig {
             rhcu_version: "0.0.0".to_owned(),
             modified: 0,
             latest_expansion_identifier: "TWW".to_owned(),
-            agnostic_gear_enchants: Vec::new(),
+            agnostic_slot_data: Vec::new(),
             expansions: Vec::new(),
             latest_expansion: None
         }
