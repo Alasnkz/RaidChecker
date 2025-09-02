@@ -552,33 +552,33 @@ impl ArmoryChecker {
         return String::default();
     }
 
-    fn check_special_item(expansions: &ExpansionsConfig, slot: &CharacterGear, enchants: &ItemData, settings: &Settings) -> String {
-        info!("Checking special item for slot: {}", enchants.slot);
+    fn check_special_item(expansions: &ExpansionsConfig, gear: &CharacterGear, item: &ItemData, settings: &Settings) -> String {
+        info!("Checking special item for slot: {}", item.slot);
         let binding = settings.slots.as_array();
         let enchant_options_opt = binding.iter().find(|x| {
-            x.1 == enchants.slot
+            x.1 == item.slot
         });
 
         let agnostic_item = expansions.agnostic_slot_data.iter().find(|x| {
-            x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
+            x.slot == item.slot || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
         });
 
         let expansion_item = expansions.latest_expansion.as_ref().unwrap().slot_data.iter().find(|x| {
-            x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
+            x.slot == item.slot || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
         });
 
         let seasonal_item = expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_slot_data.iter().find(|x| {
-            x.slot == enchants.slot || x.sub_slots.iter().find(|y| **y == enchants.slot).is_some()
+            x.slot == item.slot || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
         });
 
         if let Some(enchant_options) = enchant_options_opt {
-            let slot_name = slot.inventory_type.clone().gear_type.to_lowercase();
+            let slot_name = gear.inventory_type.clone().gear_type.to_lowercase();
             if enchant_options.0.require_special_item == true {
                 if seasonal_item.is_some() && !seasonal_item.unwrap().special_item_id.is_empty() {
-                    info!("Checking seasonal item for slot: {}", enchants.slot);
+                    info!("Checking seasonal item for slot: {}", item.slot);
                     let special =  seasonal_item.unwrap().special_item_id.clone();
                     let found = special.iter().find(|&&x| {
-                        x == slot.id
+                        x == gear.id
                     });
 
                     if found.is_none() {
@@ -586,10 +586,10 @@ impl ArmoryChecker {
                     }
                 }
                 else if expansion_item.is_some() && !expansion_item.unwrap().special_item_id.is_empty() {
-                    info!("Checking special expansion item for slot: {}", enchants.slot);
+                    info!("Checking special expansion item for slot: {}", item.slot);
                     let special =  expansion_item.unwrap().special_item_id.clone();
                     let found = special.iter().find(|&&x| {
-                        x == slot.id
+                        x == gear.id
                     });
 
                     if found.is_none() {
@@ -597,10 +597,10 @@ impl ArmoryChecker {
                     }
                 }
                 else if agnostic_item.is_some() && !agnostic_item.unwrap().special_item_id.is_empty() {
-                    info!("Checking special expansion item for slot: {}", enchants.slot);
+                    info!("Checking special expansion item for slot: {}", item.slot);
                     let special =  agnostic_item.unwrap().special_item_id.clone();
                     let found = special.iter().find(|&&x| {
-                        x == slot.id
+                        x == gear.id
                     });
 
                     if found.is_none() {
@@ -640,8 +640,6 @@ impl ArmoryChecker {
                     if check_raid_difficulty.1.boss_ids.is_empty() {
                         continue;
                     }
-
-                    todo!("Handle missing raid data stuff.");
                 }
                 continue;
             }

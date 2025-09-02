@@ -267,7 +267,8 @@ impl RaidCheckQuestions {
                             ui.label("Please input the raid-helper URL that contains the signed characters you want to check.");
                         }
 
-                        ui.text_edit_singleline(&mut self.raid_helper_url);
+                        let response = ui.text_edit_singleline(&mut self.raid_helper_url);
+                        let pressed_enter = response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
                         if self.raid_helper_url_error == true {
                             ui.label(egui::RichText::new("Invalid Raid Helper URL!").color(egui::Color32::RED));
@@ -276,7 +277,7 @@ impl RaidCheckQuestions {
                         ui.horizontal(|ui| {
                             if ui.button("Confirm").on_hover_ui(|ui| {
                                 ui.label("Sign ups on this URL will be checked.");
-                            }).clicked() {
+                            }).clicked() || pressed_enter == true {
                                 if self.player_only == PlayerOnlyCheckType::Player {
                                     send_it = Some((self.raid_helper_url.clone(), self.saved_bosses.clone(), self.player_only.clone()));
                                     self.saved_bosses.clear();
@@ -297,6 +298,8 @@ impl RaidCheckQuestions {
                                     }
                                 }
                             };
+
+                            
 
                             if ui.button("Cancel").on_hover_ui(|ui| {
                                 ui.label("Cancel the raid check.");
