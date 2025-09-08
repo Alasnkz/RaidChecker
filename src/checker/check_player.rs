@@ -7,7 +7,7 @@ use tracing::info;
 
 use crate::config::{self, realms::RealmJson, settings::RequiredRaid};
 
-use super::{armory_checker::{AOTCStatus, ArmoryChecker}, raid_sheet::{Player, RaidHelperCheckerStatus, RaidHelperUIStatus}};
+use super::{armory_checker::{RaidProgressStatus, ArmoryChecker}, raid_sheet::{Player, RaidHelperCheckerStatus, RaidHelperUIStatus}};
 
 pub struct PlayerChecker {}
 
@@ -67,7 +67,7 @@ pub struct PlayerData {
     pub num_embelishments: i32,
     pub ilvl: i32,
     pub saved_bosses: Vec<(String, String)>,
-    pub aotc_status: BTreeMap<i32, (String, AOTCStatus)>,
+    pub aotc_status: BTreeMap<i32, (String, RaidProgressStatus)>,
     pub buff_status: BTreeMap<i32, (String, i32, bool, i32, i32)>,
     pub tier_count: i32,
     pub skip_reason: Option<String>,
@@ -223,6 +223,12 @@ impl PlayerChecker {
         let aotc_report = ArmoryChecker::check_aotc(url.clone(), &data, expansions, &raid_saved_check);
         info!("--- END AOTC CHECK ---");
         let buff_status = ArmoryChecker::check_raid_buff(url.clone(), expansions, &raid_saved_check);
+        let buff_status = if buff_status.is_err() {
+            BTreeMap::new()
+        } else {
+            buff_status.unwrap()
+        };
+
         let tier_count = ArmoryChecker::check_tier_pieces(&data, expansions);
         info!("-------------------- Finished checking player {} -------------------", player.name);
         Some(PlayerData {

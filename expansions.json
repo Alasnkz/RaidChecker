@@ -492,7 +492,7 @@
     {
       "name": "Midnight",
       "identifier": "MN",
-      "expansion_start": 999999,
+      "expansion_start": 9999999999,
       "reputation_slug": "midnight",
       "gear_embelishment_bonus_id": 0,
       "slot_data": [],

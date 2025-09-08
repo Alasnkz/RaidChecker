@@ -2,7 +2,7 @@ use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui};
 use tracing::info;
 use tracing_subscriber::fmt::format;
 
-use crate::{checker::{armory_checker::AOTCStatus, check_player::PlayerData, raid_sheet::Player}, config::{self, settings::PriorityChecks}};
+use crate::{checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, raid_sheet::Player}, config::{self, settings::PriorityChecks}};
 
 pub struct SignUpsUI {
     pub target_player: Option<PlayerData>
@@ -406,15 +406,15 @@ impl SignUpsUI {
         for (_, (raid_name, aotc_status)) in player.aotc_status.iter() {
             let mut string = String::new();
             match aotc_status {
-                AOTCStatus::Account => {
+                RaidProgressStatus::Account => {
                     string = format!("{} has {raid_name} AOTC on their account, but not on this character.", player.name.clone());
                 },
 
-                AOTCStatus::Character => {
+                RaidProgressStatus::Character => {
                     string = format!("{} has {raid_name} AOTC on this character.", player.name.clone());
                 },
 
-                AOTCStatus::CuttingEdge(account, character, heroic_kill) => {
+                RaidProgressStatus::CuttingEdge(account, character, heroic_kill) => {
                     if *account == true && *character == false {
                         if *heroic_kill == true {
                             string = format!("{} has {raid_name} Cutting Edge on their account, but on this character, they have only earned AOTC.", player.name.clone());
@@ -431,11 +431,27 @@ impl SignUpsUI {
                     }
                 },
 
-                AOTCStatus::None => {
+                RaidProgressStatus::EndBossKilled(killed, heroic, mythic) => {
+                    if *killed == false {
+                        string = format!("{} has not killed {raid_name} end boss on this character.", player.name.clone());
+                    } else {
+                        string = if *mythic {
+                            if *heroic {
+                                format!("{} has killed Mythic {raid_name} end boss on this character", player.name.clone())
+                            } else {
+                                format!("{} has killed Mythic {raid_name} end boss on this character, but has not done so on Heroic.", player.name.clone())
+                            }
+                        } else {
+                            format!("{} has killed Heroic {raid_name} end boss on this character.", player.name.clone())
+                        }
+                    }
+                },
+
+                RaidProgressStatus::None => {
                     string = format!("{} does not have {raid_name} AOTC.", player.name.clone());
                 },
 
-                AOTCStatus::Skipped => {
+                RaidProgressStatus::Skipped => {
                     string = format!("");
                 },
 
