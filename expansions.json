@@ -499,6 +499,7 @@
       "seasons": [
         {
           "seasonal_identifier": "Season 1",
+          "season_start": 0,
           "raids": [
             {
               "identifier": "The Voidspire",
@@ -599,8 +600,7 @@
                 "ce": 0
               }
             }
-          ],
-          "season_start": 0
+          ]
         }
       ]
     },

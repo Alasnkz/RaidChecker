@@ -5,7 +5,7 @@ use reqwest::blocking::Client;
 use scraper::{Html, Selector};
 use tracing::info;
 
-use crate::config::{self, realms::RealmJson, settings::RequiredRaid};
+use crate::{checker::{buff_checker::BuffChecker, progress_checker::ProgressChecker, saved_checker::SavedChecker}, config::{self, realms::RealmJson, settings::RequiredRaid}};
 
 use super::{armory_checker::{RaidProgressStatus, ArmoryChecker}, raid_sheet::{Player, RaidHelperCheckerStatus, RaidHelperUIStatus}};
 
@@ -219,10 +219,10 @@ impl PlayerChecker {
         let (bad_enchant_gear, bad_socket_gear, bad_special_item, embelishments) = ArmoryChecker::check_gear(&data, settings, expansions);
         info!("Character has {} ilvl", data.character.average_item_level);
         let ilvl = data.character.average_item_level;
-        let saved_bosses = ArmoryChecker::check_saved_bosses(&data, &raid_saved_check);
-        let aotc_report = ArmoryChecker::check_aotc(url.clone(), &data, expansions, &raid_saved_check);
+        let saved_bosses = SavedChecker::check_bosses(&data, &raid_saved_check);
+        let aotc_report = ProgressChecker::check_aotc(url.clone(), &data, expansions, &raid_saved_check);
         info!("--- END AOTC CHECK ---");
-        let buff_status = ArmoryChecker::check_raid_buff(url.clone(), expansions, &raid_saved_check);
+        let buff_status = BuffChecker::check_raids(url.clone(), expansions, &raid_saved_check);
         let buff_status = if buff_status.is_err() {
             BTreeMap::new()
         } else {

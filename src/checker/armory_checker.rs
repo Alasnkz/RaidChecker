@@ -1,13 +1,13 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use anyhow::{Context, Result};
-use chrono::{DateTime, Datelike, Duration, Local, NaiveDateTime, TimeZone, Utc, Weekday};
+use anyhow::{Result};
+use chrono::{DateTime, Datelike, Duration, TimeZone, Utc, Weekday};
 use regex::Regex;
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use tracing::{error, info, warn};
 
-use crate::config::{self, expansion_config::{Expansion, ExpansionsConfig, ItemData, RaidAchievements, RaidDifficulty}, settings::{RequiredRaid, RequiredRaidDifficulty, Settings, SlotSetting}};
+use crate::config::{self, expansion_config::{Expansion, ExpansionsConfig, ItemData}, settings::{RequiredRaid, Settings, SlotSetting}};
 
 #[allow(dead_code)]
 pub struct ArmoryChecker {}
@@ -98,17 +98,17 @@ pub struct ArmoryRaidBosses {
 
 #[derive(serde::Deserialize,Clone,Debug,PartialEq, Eq, Hash)]
 pub struct ArmoryRaidDifficulty {
-    name: String,
-    count: i32,
-    total: i32,
-    bosses: Vec<ArmoryRaidBosses>
+    pub name: String,
+    pub count: i32,
+    pub total: i32,
+    pub bosses: Vec<ArmoryRaidBosses>
 }
 
 #[derive(serde::Deserialize,Clone)]
 #[allow(dead_code)]
 pub struct ArmoryRaids {
-    difficulties: Vec<ArmoryRaidDifficulty>,
-    name: String
+    pub difficulties: Vec<ArmoryRaidDifficulty>,
+    pub name: String
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -128,35 +128,35 @@ pub struct ArmoryCharacterResponse {
 
 #[derive(serde::Deserialize, Clone)]
 #[allow(dead_code)]
-struct Achievements {
+pub struct Achievements {
     #[serde(alias = "accountWide")]
-    account_wide: bool,
-    description: String,
-    id: i32,
-    name: String
+    pub account_wide: bool,
+    pub description: String,
+    pub id: i32,
+    pub name: String
 }
 
 #[derive(serde::Deserialize, Clone)]
 #[allow(dead_code)]
-struct AchievementSubCategory {
-    achievements: Vec<Achievements>,
-    id: String,
-    name: String
+pub struct AchievementSubCategory {
+    pub achievements: Vec<Achievements>,
+    pub id: String,
+    pub name: String
 }
 
 #[derive(serde::Deserialize, Clone)]
 #[allow(dead_code)]
-struct AchievementCategory {
+pub struct AchievementCategory {
     //#[serde(skip_deserializing)]
     //achievementsList: Option<Vec<String>>,
-    subcategories: HashMap<String, AchievementSubCategory>
+    pub subcategories: HashMap<String, AchievementSubCategory>
 }
 
 #[derive(serde::Deserialize, Clone)]
 #[allow(dead_code)]
-struct ArmoryCharacterAchievementResponse {
+pub struct ArmoryCharacterAchievementResponse {
     #[serde(alias = "achievementCategory")]
-    achievement_category: AchievementCategory,
+    pub achievement_category: AchievementCategory,
 }
 
 #[derive(Debug, serde::Deserialize, Clone)]
@@ -196,7 +196,7 @@ pub struct StandingType {
 
 #[derive(serde::Deserialize, Clone)]
 #[allow(dead_code)]
-struct ArmoryCharacterReputationResponse {
+pub struct ArmoryCharacterReputationResponse {
     pub reputations: ReputationsResponse
 }
 
@@ -554,484 +554,65 @@ impl ArmoryChecker {
         return String::default();
     }
 
-    fn check_special_item(expansions: &ExpansionsConfig, gear: &CharacterGear, item: &ItemData, settings: &Settings) -> String {
+    fn check_special_item(
+        expansions: &ExpansionsConfig,
+        gear: &CharacterGear,
+        item: &ItemData,
+        settings: &Settings
+    ) -> String {
         info!("Checking special item for slot: {}", item.slot);
+    
         let binding = settings.slots.as_array();
-        let enchant_options_opt = binding.iter().find(|x| {
-            x.1 == item.slot
-        });
-
-        let agnostic_item = expansions.agnostic_slot_data.iter().find(|x| {
-            x.slot == item.slot || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
-        });
-
-        let expansion_item = expansions.latest_expansion.as_ref().unwrap().slot_data.iter().find(|x| {
-            x.slot == item.slot || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
-        });
-
-        let seasonal_item = expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_slot_data.iter().find(|x| {
-            x.slot == item.slot || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
-        });
-
-        if let Some(enchant_options) = enchant_options_opt {
-            let slot_name = gear.inventory_type.clone().gear_type.to_lowercase();
-            if enchant_options.0.require_special_item == true {
-                if seasonal_item.is_some() && !seasonal_item.unwrap().special_item_id.is_empty() {
-                    info!("Checking seasonal item for slot: {}", item.slot);
-                    let special =  seasonal_item.unwrap().special_item_id.clone();
-                    let found = special.iter().find(|&&x| {
-                        x == gear.id
-                    });
-
-                    if found.is_none() {
-                        return format!("{} does not have a seasonal special item!", slot_name);
-                    }
-                }
-                else if expansion_item.is_some() && !expansion_item.unwrap().special_item_id.is_empty() {
-                    info!("Checking special expansion item for slot: {}", item.slot);
-                    let special =  expansion_item.unwrap().special_item_id.clone();
-                    let found = special.iter().find(|&&x| {
-                        x == gear.id
-                    });
-
-                    if found.is_none() {
-                        return format!("{} does not have an expansion special item!", slot_name);
-                    }
-                }
-                else if agnostic_item.is_some() && !agnostic_item.unwrap().special_item_id.is_empty() {
-                    info!("Checking special expansion item for slot: {}", item.slot);
-                    let special =  agnostic_item.unwrap().special_item_id.clone();
-                    let found = special.iter().find(|&&x| {
-                        x == gear.id
-                    });
-
-                    if found.is_none() {
-                        return format!("{} does not have an agnostic special item!", slot_name);
-                    }
-                }
-            }
-        }
-        
-        return String::default();
-    }
-
-    fn get_wednesday_reset_timestamp() -> i64 {
-        let now = Utc::now();
-        let weekday = now.weekday();
-    
-        let days_to_subtract = match weekday {
-            Weekday::Wed => 0,
-            _ => (7 + weekday.num_days_from_monday() as i64 - 2) % 7,
+        let Some((slot_setting, _)) = binding.iter().find(|(_, slot)| *slot == item.slot) else {
+            return String::default();
         };
     
-        let wednesday_date = now.date_naive() - Duration::days(days_to_subtract);
-        let wednesday_4am = wednesday_date.and_hms_opt(4, 0, 0).unwrap();
-        wednesday_4am.and_utc().timestamp_millis()
-    }
-
-    pub fn check_saved_bosses(
-        armory: &ArmoryCharacterResponse,
-        raid_saved_check: &BTreeMap<i32, RequiredRaid>,
-    ) -> Vec<(String, String)> {
-        let reset_timestamp = Self::get_wednesday_reset_timestamp() as u64;
-    
-        raid_saved_check
-            .iter()
-            .filter_map(|(&raid_id, required_raid)| {
-                // Find the corresponding raid data in the armory. If not found, `filter_map` will discard this item.
-                armory.summary.raids.get(raid_id as usize).map(|armory_raid| (armory_raid, required_raid))
-            })
-            .flat_map(|(armory_raid, required_raid)| {
-                let mut killed_bosses_in_raid: BTreeMap<usize, (String, Vec<(String, u64)>)> = BTreeMap::new();
-    
-                for (&difficulty_id, required_difficulty) in &required_raid.difficulty {
-                    if required_difficulty.boss_ids.is_empty() {
-                        continue;
-                    }
-    
-                    if let Some(armory_difficulty) = armory_raid.difficulties.get(difficulty_id as usize) {
-                        for (boss_id, armory_boss) in armory_difficulty.bosses.iter().enumerate() {
-                            if required_difficulty.boss_ids.contains(&(boss_id as i32)) {
-                                if let Some(timestamp) = armory_boss.last_timestamp {
-                                    if timestamp > reset_timestamp {
-                                        let entry = killed_bosses_in_raid
-                                            .entry(boss_id)
-                                            .or_insert_with(|| (armory_boss.name.clone(), Vec::new()));
-                                        entry.1.push((armory_difficulty.name.clone(), timestamp / 1000));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                killed_bosses_in_raid.into_iter().map(move |(_, (boss_name, difficulties))| {
-                    let (diff_names, timestamps): (Vec<_>, Vec<_>) = difficulties.into_iter().unzip();
-                    let diff_str = diff_names.join(", ");
-                    let last_kill_timestamp = timestamps.last().unwrap_or(&0);
-                    let kill_time: DateTime<Utc> = Utc.timestamp_opt(*last_kill_timestamp as i64, 0).unwrap();
-                    
-                    (
-                        armory_raid.name.clone(),
-                        format!(
-                            "{} ({}) @ {}",
-                            boss_name,
-                            diff_str,
-                            kill_time.format("%A %H:%M")
-                        ),
-                    )
-                })
-            })
-        .collect()
-    }
-
-    pub fn check_aotc(
-        url: String,
-        armory: &ArmoryCharacterResponse,
-        expansions: &config::expansion_config::ExpansionsConfig,
-        raid_saved_check_input: &BTreeMap<i32, RequiredRaid>,
-    ) -> BTreeMap<i32, (String, RaidProgressStatus)> {
-        info!("--- AOTC CHECK ---");
-
-        let raid_saved_check = Self::determine_raids_to_check(expansions, raid_saved_check_input);
-
-        let feats_url = format!("{}/achievements/feats-of-strength", url.trim_end_matches('/'));
-        let response_text = Self::fetch_achievements(&feats_url);
-
-        let mut aotc_ce_status = BTreeMap::new();
-        if let Some(data) = Self::extract_achievement_data(&response_text) {
-            Self::process_achievements(
-                &data,
-                armory,
-                expansions,
-                &raid_saved_check,
-                &mut aotc_ce_status,
-            );
-        } else {
-            error!("Could not find character profile initial state in response.");
+        if !slot_setting.require_special_item {
+            return String::default();
         }
-
-        Self::fill_missing_raids(&raid_saved_check, expansions, &mut aotc_ce_status);
-
-        aotc_ce_status
-    }
-
-    fn determine_raids_to_check(
-        expansions: &config::expansion_config::ExpansionsConfig,
-        input: &BTreeMap<i32, RequiredRaid>,
-    ) -> BTreeMap<i32, RequiredRaid> {
-        if input.is_empty()
-            || input.iter().all(|x| x.1.difficulty.is_empty())
-            || input
-                .iter()
-                .all(|x| x.1.difficulty.iter().all(|y| y.1.boss_ids.is_empty()))
-        {
-            info!("Specified raid is empty, assuming last raid.");
-            if let Some(latest) = &expansions.latest_expansion {
-                if let Some(season) = &latest.latest_season {
-                    if let Some(last_raid) = season.raids.last() {
-                        return BTreeMap::from([(
-                            last_raid.id,
-                            RequiredRaid {
-                                id: last_raid.id,
-                                difficulty: BTreeMap::from([(
-                                    1,
-                                    RequiredRaidDifficulty { boss_ids: vec![0] },
-                                )]),
-                            },
-                        )]);
-                    }
-                }
+    
+        let slot_matches = |data: &&ItemData| data.slot == item.slot || data.sub_slots.contains(&item.slot);
+        let slot_name = gear.inventory_type.clone().gear_type.to_lowercase();
+    
+        let perform_check = |item_ids: &[i32], item_type: &str, log_message: &str| {
+            if item_ids.is_empty() {
+                return None;
             }
-        }
-        input.clone()
-    }
-
-    fn fetch_achievements(url: &str) -> String {
-        let client = Client::new();
-        client
-            .get(url)
-            .header(
-                "User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
-            )
-            .send()
-            .and_then(|r| r.text())
-            .unwrap_or_else(|e| {
-                error!("Failed to fetch achievements: {}", e);
-                String::new()
-            })
-    }
-
-    fn extract_achievement_data(response: &str) -> Option<ArmoryCharacterAchievementResponse> {
-        let re = Regex::new(r#"var\s+characterProfileInitialState\s*=\s*(\{.*?\});"#).unwrap();
-        re.captures(response)
-            .and_then(|cap| serde_json::from_str(&cap[1]).ok())
-    }
-
-    fn process_achievements(
-        data: &ArmoryCharacterAchievementResponse,
-        armory: &ArmoryCharacterResponse,
-        expansions: &config::expansion_config::ExpansionsConfig,
-        raids_to_check: &BTreeMap<i32, RequiredRaid>,
-        aotc_ce_status: &mut BTreeMap<i32, (String, RaidProgressStatus)>,
-    ) {
-        // Map achievements by ID for quick lookup
-        let mut achievement_map = BTreeMap::new();
-        for category in &data.achievement_category.subcategories {
-            if category.1.id == "raids" {
-                for achievement in &category.1.achievements {
-                    achievement_map.insert(achievement.id, achievement);
-                }
-                break;
-            }
-        }
-    
-        for (&raid_id, _) in raids_to_check {
-            let raid = expansions
-                .latest_expansion
-                .as_ref()
-                .and_then(|e| e.find_raid_by_id(raid_id))
-                .expect("Raid not found in expansion data");
-            let raid_name = raid.identifier.clone();
-    
-            let status = if raid.achievements.dependency_id != -1 {
-                let raid_summary = armory.summary.raids.get(raid_id as usize);
-                Self::end_boss_status(raid_summary)
-            } else {
-                let achievement = achievement_map.get(&raid.achievements.aotc)
-                    .or_else(|| achievement_map.get(&raid.achievements.ce));
-                if let Some(ach) = achievement {
-                    Self::aotc_ce_status(ach.id, &raid.achievements, armory.summary.raids.get(raid_id as usize))
-                } else {
-                    RaidProgressStatus::None
-                }
-            };
-    
-            aotc_ce_status.entry(raid_id).or_insert((raid_name, status));
-        }
-    }
-    
-    fn aotc_ce_status(
-        earned_achievement_id: i32,
-        achievements: &RaidAchievements,
-        raid: Option<&ArmoryRaids>,
-    ) -> RaidProgressStatus {
-        if raid.is_none() {
-            info!("No raid summary! Depending on purely achievement.");
-            return if earned_achievement_id == achievements.ce {
-                RaidProgressStatus::CuttingEdge(true, false, false)
-            } else {
-                RaidProgressStatus::Account
-            };
-        }
-
-        let raid = raid.unwrap();
-        let mut has_cutting_edge = false;
-    
-        if earned_achievement_id == achievements.ce {
-            if let Some(mythic) = raid.difficulties.get(3) {
-                if let Some(last_boss) = mythic.bosses.last() {
-                    if last_boss.kill_count >= 1 {
-                        info!("Character has killed mythic end boss.");
-                        has_cutting_edge = true;
-                    }
-                }
-            }
-        }
-    
-        if let Some(heroic) = raid.difficulties.get(2) {
-            if let Some(last_boss) = heroic.bosses.last() {
-                if last_boss.kill_count >= 1 {
-                    return if earned_achievement_id == achievements.ce {
-                        RaidProgressStatus::CuttingEdge(true, has_cutting_edge, true)
-                    } else if earned_achievement_id == achievements.aotc {
-                        RaidProgressStatus::Character
-                    } else {
-                        RaidProgressStatus::None
-                    };
-                }
-            }
-        }
-    
-        if earned_achievement_id == achievements.ce && has_cutting_edge {
-            return RaidProgressStatus::CuttingEdge(true, has_cutting_edge, false);
-        }
-    
-        RaidProgressStatus::Account
-    }
-
-
-    fn end_boss_status(
-        raid: Option<&ArmoryRaids>
-    ) -> RaidProgressStatus {
-        if raid.is_none() {
-            return RaidProgressStatus::Error;
-        }
-
-        let raid = raid.unwrap();
-        info!("Checking end boss kill for {}", raid.name);
-        let mythic_killed = raid.difficulties.get(3)
-            .and_then(|d| d.bosses.last())
-            .map(|b| b.kill_count >= 1)
-            .unwrap_or(false);
-    
-        let heroic_killed = raid.difficulties.get(2)
-             .and_then(|d| d.bosses.last())
-            .map(|b| b.kill_count >= 1)
-            .unwrap_or(false);
-    
-        RaidProgressStatus::EndBossKilled(heroic_killed || mythic_killed, heroic_killed, mythic_killed)
-    }
-
-    fn fill_missing_raids(
-        raids_to_check: &BTreeMap<i32, RequiredRaid>,
-        expansions: &config::expansion_config::ExpansionsConfig,
-        aotc_ce_status: &mut BTreeMap<i32, (String, RaidProgressStatus)>,
-    ) {
-        for (&raid_id, required) in raids_to_check {
-            if !aotc_ce_status.contains_key(&raid_id)
-                && required
-                    .difficulty
-                    .iter()
-                    .any(|(_, diff)| !diff.boss_ids.is_empty())
-            {
-                if let Some(raid) = expansions
-                    .latest_expansion
-                    .as_ref()
-                    .and_then(|e| e.find_raid_by_id(raid_id))
-                {
-                    info!("No AOTC/CE data found for raid {}", raid.identifier);
-                    aotc_ce_status.insert(raid_id, (raid.identifier.clone(), RaidProgressStatus::None));
-                }
-            }
-        }
-    }
-
-    pub fn check_raid_buff(
-        _url: String,
-        expansions: &config::expansion_config::ExpansionsConfig,
-        raid_saved_check_input: &BTreeMap<i32, RequiredRaid>,
-    ) -> Result<BTreeMap<i32, (String, i32, bool, i32, i32)>> {
-        info!("Checking for raid buffs");
-    
-        let latest_expansion = expansions
-            .latest_expansion
-            .as_ref()
-            .context("Latest expansion configuration is missing")?;
-
-        let raid_saved_check = if raid_saved_check_input.values().all(|r| r.difficulty.values().all(|d| d.boss_ids.is_empty())) {
-            info!("No valid raid difficulties specified, assuming last raid of the latest season.");
-            let latest_raid = latest_expansion
-                .latest_season
-                .as_ref()
-                .and_then(|s| s.raids.last())
-                .context("Could not find the latest raid in configuration")?;
             
-            BTreeMap::from([(
-                latest_raid.id,
-                RequiredRaid {
-                    id: latest_raid.id,
-                    difficulty: BTreeMap::from([(1, RequiredRaidDifficulty { boss_ids: vec![0] })]),
-                },
-            )])
-        } else {
-            raid_saved_check_input.clone()
+            info!("{}", log_message);
+            if item_ids.contains(&gear.id) {
+                Some(String::default())
+            } else {
+                Some(format!("{} does not have a {} special item!", slot_name, item_type)) // Failure.
+            }
         };
     
-        let url = format!("{}/reputation", _url.trim_end_matches('/'));
-        let client = Client::new();
-        let response_text = client
-            .get(url)
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
-            .send()
-            .context("Failed to send request to armory")?
-            .text()
-            .context("Failed to read armory response text")?;
-    
-        let re = Regex::new(r#"var\s+characterProfileInitialState\s*=\s*(\{.*?\});"#)?;
-        let js_variable = re
-            .captures(&response_text)
-            .and_then(|caps| caps.get(1))
-            .map(|m| m.as_str())
-            .context("Could not find 'characterProfileInitialState' JSON in the response")?;
-        
-        let armory_response: ArmoryCharacterReputationResponse = serde_json::from_str(js_variable)
-            .context("Failed to deserialize character JSON data")?;
-    
-        let mut raid_buffs = BTreeMap::new();
-        let all_reputations: Vec<_> = armory_response.reputations.reputations
-            .iter()
-            .flat_map(|cat| cat.reputations.iter())
-            .flat_map(|rep| std::iter::once(rep).chain(rep.reputations.iter()))
-            .collect();
-    
-        for (raid_id, raid_config) in &raid_saved_check {
-            if raid_config.difficulty.values().all(|d| d.boss_ids.is_empty()) {
-                info!("Skipping raid ID: {} as it has no specified boss IDs to check.", raid_id);
-                continue;
+        if let Some(expansion) = &expansions.latest_expansion {
+            if let Some(season) = &expansion.latest_season {
+                if let Some(seasonal_item) = season.seasonal_slot_data.iter().find(slot_matches) {
+                    if let Some(result) = perform_check(&seasonal_item.special_item_id, "seasonal", &format!("Checking seasonal item for slot: {}", item.slot)) {
+                        return result;
+                    }
+                }
             }
-    
-            let raid = latest_expansion.find_raid_by_id(*raid_id).with_context(|| format!("Configuration for raid ID {} not found", raid_id))?;
-            let Some(reputation) = &raid.reputation else {
-                info!("Raid {} has no reputation assigned, skipping buff check.", raid.identifier);
-                raid_buffs.insert(*raid_id, (raid.identifier.clone(), 0, false, 0, 0));
-                continue;
-            };
-
-            let character_rep_data = all_reputations.iter().find(|&&rep| rep.id == reputation.raid_rep_slug);
-            let (current_renown, current_renown_amount) = if let Some(data) = character_rep_data {
-                let renown_str = data.standing.as_deref().unwrap_or("Renown 0").split(' ').last().unwrap_or("0");
-                let level = renown_str.parse().unwrap_or(0);
-                let amount = data.value.unwrap_or(0) as i32;
-                info!("Reputation data found for {}: Renown {}, Amount {}", raid.identifier, level, amount);
-                (level, amount)
-            } else {
-                info!("No reputation data found for raid: {}. Assuming Renown 1.", raid.identifier);
-                (1, 0)
-            };
-            
-            let start_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(reputation.renown_start, 0).unwrap(), Utc);
-            let max_renown = (Utc::now() - start_time).num_weeks() + 2;
-
-            let missing_buff_levels: Vec<_> = reputation.raid_buff_renowns
-                .iter()
-                .filter(|&&lvl| lvl > current_renown && (lvl as i64) <= max_renown)
-                .copied()
-                .collect();
-            
-            if missing_buff_levels.is_empty() {
-                info!("No missing buff levels found for {}, current renown: {}, max renown: {}", raid.identifier, current_renown, max_renown);
-                continue;
-            }
-
-            let next_buff_renown = *missing_buff_levels.first().unwrap();
-            let renown_levels_to_gain = next_buff_renown - current_renown;
-
-            let possible = if character_rep_data.is_some() {
-                let weekly_cap = reputation.max_renown_value_weekly + current_renown_amount; // Cap includes current progress.
-                let points_needed = renown_levels_to_gain * reputation.renown_level_value;
-                (points_needed as f32) <= (weekly_cap as f32)
-            } else {
-                let points_needed = renown_levels_to_gain * reputation.renown_level_value;
-                (points_needed as f32) <= (reputation.max_renown_value_weekly as f32)
-            };
-            
-            info!("{} Missing buff renowns: {:?}, possible to get a buff: {possible}", raid.identifier, missing_buff_levels);
-            raid_buffs.insert(
-                *raid_id,
-                (
-                    raid.identifier.clone(),
-                    missing_buff_levels.len() as i32,
-                    possible,
-                    reputation.buff_size,
-                    reputation.max_renown_value_weekly,
-                ),
-            );
         }
     
-        Ok(raid_buffs)
-    }
+        if let Some(expansion) = &expansions.latest_expansion {
+            if let Some(expansion_item) = expansion.slot_data.iter().find(slot_matches) {
+                if let Some(result) = perform_check(&expansion_item.special_item_id, "expansion", &format!("Checking special expansion item for slot: {}", item.slot)) {
+                    return result;
+                }
+            }
+        }
+    
+        if let Some(agnostic_item) = expansions.agnostic_slot_data.iter().find(slot_matches) {
+            if let Some(result) = perform_check(&agnostic_item.special_item_id, "agnostic", &format!("Checking special agnostic item for slot: {}", item.slot)) {
+                return result;
+            }
+        }
+
+        String::default()
+    }   
 
     pub fn check_tier_pieces(armory: &ArmoryCharacterResponse, expansions: &config::expansion_config::ExpansionsConfig) -> i32 {
         info!("Checking for tier pieces");
