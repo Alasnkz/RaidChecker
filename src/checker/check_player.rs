@@ -4,7 +4,7 @@ use regex::Regex;
 use reqwest::blocking::Client;
 use scraper::{Html, Selector};
 use tracing::info;
-
+use strsim::jaro_winkler;
 use crate::{checker::{buff_checker::BuffChecker, progress_checker::ProgressChecker, saved_checker::SavedChecker}, config::{self, realms::RealmJson, settings::RequiredRaid}};
 
 use super::{armory_checker::{RaidProgressStatus, ArmoryChecker}, raid_sheet::{Player, RaidHelperCheckerStatus, RaidHelperUIStatus}};
@@ -14,9 +14,15 @@ pub struct PlayerChecker {}
 fn converted_name_correct_realm(ourl: String, realms: &RealmJson) -> String {
     info!("Converting name to correct realm slug: {}", ourl);
     let mut url = ourl.to_lowercase();
+    let realm_name = url.split_once("/").unwrap().0;
     for realm in realms.realms.iter() {
-        if url.contains(&realm.name) {
-            url = url.replace(&realm.name, &realm.slug);
+        let score = jaro_winkler(&realm.name, &realm_name);
+        if score >= 0.9 || url.contains(&realm.name) {
+            if realm.name != realm_name {
+                info!("Correcting {} to {} (0.9 threshold)", realm_name, realm.name);
+            }
+            url = url.replace(&realm_name, &realm.slug);
+            break;
         }
     }
     return url;
