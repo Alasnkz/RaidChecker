@@ -258,16 +258,6 @@ impl RaidSheet {
        });
     }
 
-    fn update_wait_state(&mut self, ctx: &egui::Context) {
-        self.frame_counter += 1;
-    
-        if self.frame_counter % 10 == 0 {
-            self.wait_counter = (self.wait_counter + 1) % 4;
-        }
-    
-        ctx.request_repaint();
-    }
-
     pub fn draw(&mut self, ctx: &egui::Context, last_raid: &mut config::last_raid::LastRaid, just_checked: &mut bool,
         checked_player: &mut Option<PlayerData>) {
 
@@ -364,20 +354,24 @@ impl RaidSheet {
                     .collapsible(false)
                     .resizable(false)
                     .show(ctx, |ui| {
-                        ui.label("Initializing...");
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label("Getting started");
+                        });
                     });
             },
 
             RaidSheetState::Checking(_msg) => {
-                self.update_wait_state(ctx);
                 egui::Window::new("Raid Helper - Parsing Players")
                     .collapsible(false)
                     .resizable(false)
                     .show(ctx, |ui| {
-                        let dots = ".".repeat(self.wait_counter);
-                        ui.label(match &self.state {
-                            RaidSheetState::Checking(msg) => format!("Checking {}{}", msg, dots),
-                            _ => "No data yet.".to_owned()
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(match &self.state {
+                                RaidSheetState::Checking(msg) => format!("Checking {}", msg),
+                                _ => "No data yet.".to_owned()
+                            });
                         });
                     });
             },
@@ -488,13 +482,14 @@ impl RaidSheet {
             },
 
             RaidSheetState::Wait => {
-                self.update_wait_state(ctx);
                 egui::Window::new("Raid Helper - Waiting")
                     .collapsible(false)
                     .resizable(false)
                     .show(ctx, |ui| {
-                        let dots = ".".repeat(self.wait_counter);
-                        ui.label(format!("Please wait{}", dots));
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(format!("Please wait"));
+                        });
                     });
             },
 
