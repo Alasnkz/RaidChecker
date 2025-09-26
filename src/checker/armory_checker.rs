@@ -1,13 +1,12 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use anyhow::{Result};
-use chrono::{DateTime, Datelike, Duration, TimeZone, Utc, Weekday};
 use regex::Regex;
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use tracing::{error, info, warn};
 
-use crate::config::{self, expansion_config::{Expansion, ExpansionsConfig, ItemData}, settings::{RequiredRaid, Settings, SlotSetting}};
+use crate::config::{self, expansion_config::{Expansion, ExpansionsConfig, ItemData}, settings::{Settings, SlotSetting}};
 
 #[allow(dead_code)]
 pub struct ArmoryChecker {}

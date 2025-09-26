@@ -16,6 +16,7 @@ use super::check_player::{PlayerChecker, PlayerData};
 
 #[derive(serde::Deserialize, Clone)]
 pub struct Player {
+    pub position: i32,
     pub specName: Option<String>,
     pub name: String,
     pub roleName: Option<String>,
@@ -60,6 +61,7 @@ pub struct RaidSheet {
 impl Default for Player {
     fn default() -> Self {
         Self {
+            position: 0,
             specName: Some("N/A".to_string()),
             name: String::default(),
             roleName: None,
@@ -207,9 +209,11 @@ impl RaidSheet {
                 last_raid.players.clear();
             }
 
-            let viable: Vec<&Player> = raid_response.signUps.iter().filter(|x| should_check_player(x)).collect();
+            let mut viable: Vec<&Player> = raid_response.signUps.iter().filter(|x| should_check_player(x)).collect();
+            viable.sort_by(|a, b| a.position.partial_cmp(&b.position).unwrap());
 
             let mut vec_player = Vec::new();
+
             for player in viable.iter() {
                 let player_url = if last_raid.players.iter().find(|x| x.discord_id == player.userId && x.name == player.name).is_some() {
                     Some(last_raid.players.iter().find(|x| x.discord_id == player.userId).unwrap().armory_url.clone())
