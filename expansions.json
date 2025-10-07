@@ -492,7 +492,7 @@
     {
       "name": "Midnight",
       "identifier": "MN",
-      "expansion_start": 9999999999,
+      "expansion_start": 99999,
       "reputation_slug": "midnight",
       "gear_embelishment_bonus_id": 0,
       "slot_data": [],
@@ -523,12 +523,12 @@
               ],
               "id": 0,
               "boss_names": [
-                "Unknown Boss Name 1",
-                "Unknown Boss Name 2",
-                "Unknown Boss Name 3",
-                "Unknown Boss Name 4",
-                "Unknown Boss Name 5",
-                "Unknown Boss Name 6"
+                "Imperator Averzian",
+                "Vorasius",
+                "Vaelgor & Ezzorak",
+                "Fallen-King Salhadaar",
+                "Lightblinded Vanguard",
+                "Crown of the Cosmos"
               ],
               "achievements": {
                 "aotc": 0,
@@ -559,13 +559,12 @@
               ],
               "id": 1,
               "boss_names": [
-                "Unknown Boss Name"
+                "Chimaerus the Undreamt God"
               ],
               
               "achievement": {
-                "aotc": 0,
-                "ce": 0,
-                "dependency_id": 2
+                "aotc": 61491,
+                "ce": 61492
               }
             },
 
@@ -592,12 +591,13 @@
               ],
               "id": 2,
               "boss_names": [
-                "Unknown Boss Name 1",
-                "Unknown Boss Name 2"
+                "Belo'ren, Child of Al'ar",
+                "Midnight Falls"
               ],
               "achievements": {
                 "aotc": 0,
-                "ce": 0
+                "ce": 0,
+                "dependency_id": 2
               }
             }
           ]

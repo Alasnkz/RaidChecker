@@ -267,7 +267,6 @@ impl ArmoryChecker {
                 continue;
             }
             let raid_check = raid_check.unwrap();
-            let raid_id = check_raid_ids.0;
             let unique_difficulties: Vec<_> = raid_check.difficulties
                 .iter()
                 .filter(|x| seen.insert(*x))
@@ -363,7 +362,6 @@ impl ArmoryChecker {
                     }
                 }
 
-                // Check for sockets (if needed)
                 let str = Self::check_gear_socket(&expansions, &gear.1, enchantment_slot.unwrap(), &settings);
                 if str.len() > 0 {
                     info!("{str}");
