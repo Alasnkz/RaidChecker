@@ -531,9 +531,8 @@
                 "Crown of the Cosmos"
               ],
               "achievements": {
-                "aotc": 0,
-                "ce": 0,
-                "dependency_id": 2
+                "aotc": 61624,
+                "ce": 61625
               }
             },
 
@@ -595,9 +594,8 @@
                 "Midnight Falls"
               ],
               "achievements": {
-                "aotc": 0,
-                "ce": 0,
-                "dependency_id": 2
+                "aotc": 61626,
+                "ce": 61627
               }
             }
           ]
