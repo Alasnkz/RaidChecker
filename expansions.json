@@ -1,6 +1,6 @@
 {
   "rhcu_version": "1.1.0",
-  "modified": 1755098265,
+  "modified": 1768950138,
   "latest_expansion_identifier": "TWW",
   "agnostic_slot_data": [
     {
@@ -492,9 +492,9 @@
     {
       "name": "Midnight",
       "identifier": "MN",
-      "expansion_start": 99999,
+      "expansion_start": 1772492400,
       "reputation_slug": "midnight",
-      "gear_embelishment_bonus_id": 0,
+      "gear_embelishment_bonus_id": 8960,
       "slot_data": [
         {
           "slot": "head",
@@ -673,7 +673,7 @@
       "seasons": [
         {
           "seasonal_identifier": "Season 1",
-          "season_start": 0,
+          "season_start": 1773633600,
           "raids": [
             {
               "identifier": "The Voidspire",
@@ -742,7 +742,7 @@
             },
 
             {
-              "release_time": 9999999999,
+              "release_time": 1775012400,
               "identifier": "March on Quel'Danas",
               "difficulty": [
                 {

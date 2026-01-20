@@ -165,6 +165,10 @@ impl RaidHelperCheckerApp{
         self.win_title = format!("Raid Checker ({} {})", self.expansions.latest_expansion.as_ref().unwrap().name, self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap_or(&ExpansionSeasons::default()).seasonal_identifier);
         self.win_title_change = true;
 
+        if self.expansions.latest_expansion.as_ref().unwrap().latest_season.is_none() {
+            return;
+        }
+
         for raid in self.expansions.latest_expansion.clone().unwrap().latest_season.unwrap().raids.iter() {
             if raid.release_time != 0 {
                 let raid_launch: DateTime<Utc> = Utc.timestamp_opt(raid.release_time, 0).unwrap();
@@ -173,7 +177,6 @@ impl RaidHelperCheckerApp{
                     info!("{} raid {} ({}) has not launched yet, ignoring. Will activate on {}", self.expansions.latest_expansion.as_ref().unwrap().name, raid.identifier, self.expansions.latest_expansion.clone().unwrap().latest_season.unwrap().seasonal_identifier, raid_launch.format("%A, %B %d %Y").to_string());
                     self.expansions.latest_expansion.as_mut().unwrap().seasons.last_mut().unwrap().raids.retain(|x| x.identifier != raid.identifier);
                     self.expansions.latest_expansion.as_mut().unwrap().latest_season.as_mut().unwrap().raids.retain(|x| x.identifier != raid.identifier);
-                    //as_mut().unwrap().raids.retain(|x| x.identifier != raid.identifier);
                 }
             }
         }

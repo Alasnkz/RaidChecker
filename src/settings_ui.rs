@@ -207,6 +207,14 @@ impl SettingsUi {
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {
+                if expansion_config.latest_expansion.is_none() || expansion_config.latest_expansion.as_ref().unwrap().latest_season.is_none() {
+                    ui.label("No raids were found.");
+                    if ui.button("Close").clicked() {
+                        close = true;
+                    }
+                    return;
+                }
+
                 ui.vertical(|ui| {
                     ui.add(egui::Slider::new(&mut settings.average_ilvl, 0..=1000).text("Average item level required"));
 

@@ -108,7 +108,7 @@ impl Default for ExpansionRaid {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct ExpansionSeasons {
     pub seasonal_identifier: String,
     #[serde(default="default_i64")]
@@ -118,6 +118,18 @@ pub struct ExpansionSeasons {
     pub seasonal_slot_data: Vec<ItemData>, // Contains data for things such as D.I.S.C. belt, or things like seasonal enchants (horrific visions)
     #[serde(default="default_vec")]
     pub tier_gear_ids: Vec<i32>, 
+}
+
+impl Default for ExpansionSeasons {
+    fn default() -> Self {
+        Self {
+            seasonal_identifier: "Pre Season".to_owned(),
+            season_start: 0,
+            raids: Vec::new(),
+            seasonal_slot_data: Vec::new(),
+            tier_gear_ids: Vec::new(),
+        }
+    }
 }
 
 fn default_i64() -> i64 {
