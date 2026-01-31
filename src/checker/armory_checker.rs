@@ -386,10 +386,13 @@ impl ArmoryChecker {
             x.1 == item.slot
         });
 
-        let binding = expansion.latest_season.clone().unwrap();
-        let seasonal_item = binding.seasonal_slot_data.iter().find(|x| {
-            x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
-        });
+        let seasonal_item = if expansion.latest_season.is_none() {
+            None 
+        } else {
+            expansion.latest_season.as_ref().unwrap().seasonal_slot_data.iter().find(|x| {
+                x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
+            })
+        };
 
         let agnostic_item = expansions.agnostic_slot_data.iter().find(|x| {
             x.slot == item.slot || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
@@ -499,9 +502,13 @@ impl ArmoryChecker {
             x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
         });
 
-        let seasonal_slot_opt: Option<&ItemData> = expansion.latest_season.as_ref().unwrap().seasonal_slot_data.iter().find(|x| {
-            x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
-        });
+        let seasonal_slot_opt = if expansion.latest_season.is_none() {
+            None 
+        } else {
+            expansion.latest_season.as_ref().unwrap().seasonal_slot_data.iter().find(|x| {
+                x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
+            })
+        };
 
         if let Some(slot_options) = enchant_options_opt {
             if let Some(seasonal_item) = seasonal_slot_opt {
@@ -613,6 +620,10 @@ impl ArmoryChecker {
 
     pub fn check_tier_pieces(armory: &ArmoryCharacterResponse, expansions: &config::expansion_config::ExpansionsConfig) -> i32 {
         info!("Checking for tier pieces");
+        if expansions.latest_expansion.as_ref().unwrap().latest_season.is_none() {
+            return -1;
+        }
+        
         let mut count = 0;
         let binding = expansions.latest_expansion.clone().unwrap().latest_season.clone().unwrap();
         let tier_sets = binding.tier_gear_ids.clone();

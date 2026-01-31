@@ -485,7 +485,8 @@
             237640, 237638, 237637, 237636, 237635,
             237701, 237700, 237699, 237703, 237698,
             237613, 237611, 237610, 237609, 237608
-          ]
+          ],
+          "max_ilvl": 170
         }
       ]
     },
@@ -771,6 +772,33 @@
                 "aotc": 61626,
                 "ce": 61627
               }
+            },
+
+            {
+              "release_time": 9999999999,
+              "identifier": "Sporefall",
+              "difficulty": [
+                {
+                  "difficulty_name": "Looking for Raid",
+                  "id": 0
+                },
+                {
+                  "difficulty_name": "Normal",
+                  "id": 1
+                },
+                {
+                  "difficulty_name": "Heroic",
+                  "id": 2
+                },
+                {
+                  "difficulty_name": "Mythic",
+                  "id": 3
+                }
+              ],
+              "id": 3,
+              "boss_names": [
+                "Unknown Boss Name"
+              ]
             }
           ],
           "tier_gear_ids": [
@@ -787,7 +815,8 @@
             250036, 250034, 250033, 250032, 250031,
             249991, 249989, 249988, 249987, 249986,
             250052, 250051, 250050, 250054, 250049
-          ]
+          ],
+          "max_ilvl": 230
         }
       ]
     },

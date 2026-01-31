@@ -86,11 +86,17 @@ impl SettingsUi {
         let mut close: bool = false;
         let latest_expansion = expansions.latest_expansion.clone().unwrap();
         let current_season = latest_expansion.latest_season.clone();
+        let mut max_ilvl = current_season.as_ref().map_or(1000, |s| s.max_ilvl);
+        if max_ilvl == -1 {
+            max_ilvl = 1000;
+        }
+
         egui::Window::new("Raid Item Requirements")
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
+                    ui.add(egui::Slider::new(&mut settings.average_ilvl, 0..=max_ilvl).text("Average item level required"));
                     ui.add(egui::Slider::new(&mut settings.embelishments, 0..=2).text("Embelishments required"));
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for item in settings.slots.as_array_mut().iter_mut() {
@@ -216,8 +222,6 @@ impl SettingsUi {
                 }
 
                 ui.vertical(|ui| {
-                    ui.add(egui::Slider::new(&mut settings.average_ilvl, 0..=1000).text("Average item level required"));
-
                     if settings.required_raids.is_empty() || 
                             settings.required_raids.iter().find(|x| expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(*x.0).is_none()).is_some() {
                         let latest_raid = expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id;

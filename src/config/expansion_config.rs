@@ -118,6 +118,8 @@ pub struct ExpansionSeasons {
     pub seasonal_slot_data: Vec<ItemData>, // Contains data for things such as D.I.S.C. belt, or things like seasonal enchants (horrific visions)
     #[serde(default="default_vec")]
     pub tier_gear_ids: Vec<i32>, 
+    #[serde(default="default_i32")]
+    pub max_ilvl: i32
 }
 
 impl Default for ExpansionSeasons {
@@ -128,6 +130,7 @@ impl Default for ExpansionSeasons {
             raids: Vec::new(),
             seasonal_slot_data: Vec::new(),
             tier_gear_ids: Vec::new(),
+            max_ilvl: -1
         }
     }
 }

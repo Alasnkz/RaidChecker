@@ -104,46 +104,47 @@ impl RaidCheckQuestions {
                         .show(ctx, |ui| {
                             ui.label("There are no raids available to check.");
                             if ui.button("OK").clicked() {
-                                self.state = QuestionState::None;
+                                self.state = QuestionState::AskRaidHelperURL;
                             }
                         });
                     return None;
                 }
-
-                egui::Window::new("Would you like to check if the character(s) are saved?")
-                    .collapsible(false)
-                    .resizable(false)
-                    .show(ctx, |ui| {
-                        ui.label("Would you like to check if the character(s) are saved?");
-                        ui.horizontal(|ui| {
-                            if ui.button("Yes").on_hover_ui(|ui| {
-                                ui.label("Checking for Saved bosses will check if the user has killed the bosses on the specific difficulties this reset.");
-                            }).clicked() {
-                                self.state = QuestionState::AskSavedBosses;
-                            };
-
-                            if ui.button("No").on_hover_ui(|ui| {
-                                ui.label("Characters' boss kills will not be checked this reset.");
-                            }).clicked() {
-                                self.state = QuestionState::AskRaidHelperURL;
-                                self.display_raid_id = if self.display_raid_id == -1 {
-                                    if expansion_config.latest_expansion.is_none() || expansion_config.latest_expansion.as_ref().unwrap().latest_season.is_none() {
-                                        -1
-                                    } else {
-                                        expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
-                                    }
-                                } else {
-                                    self.display_raid_id
+                else {
+                    egui::Window::new("Would you like to check if the character(s) are saved?")
+                        .collapsible(false)
+                        .resizable(false)
+                        .show(ctx, |ui| {
+                            ui.label("Would you like to check if the character(s) are saved?");
+                            ui.horizontal(|ui| {
+                                if ui.button("Yes").on_hover_ui(|ui| {
+                                    ui.label("Checking for Saved bosses will check if the user has killed the bosses on the specific difficulties this reset.");
+                                }).clicked() {
+                                    self.state = QuestionState::AskSavedBosses;
                                 };
-                            };
 
-                            if ui.button("Cancel").on_hover_ui(|ui| {
-                                ui.label("Cancel the raid check.");
-                            }).clicked() {
-                                self.state = QuestionState::None;
-                            }
+                                if ui.button("No").on_hover_ui(|ui| {
+                                    ui.label("Characters' boss kills will not be checked this reset.");
+                                }).clicked() {
+                                    self.state = QuestionState::AskRaidHelperURL;
+                                    self.display_raid_id = if self.display_raid_id == -1 {
+                                        if expansion_config.latest_expansion.is_none() || expansion_config.latest_expansion.as_ref().unwrap().latest_season.is_none() {
+                                            -1
+                                        } else {
+                                            expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
+                                        }
+                                    } else {
+                                        self.display_raid_id
+                                    };
+                                };
+
+                                if ui.button("Cancel").on_hover_ui(|ui| {
+                                    ui.label("Cancel the raid check.");
+                                }).clicked() {
+                                    self.state = QuestionState::None;
+                                }
+                            });
                         });
-                    });
+                    }
             },
 
             QuestionState::AskSavedBosses => {
