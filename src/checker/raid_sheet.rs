@@ -306,6 +306,10 @@ impl RaidSheet {
     }
 
     pub fn recheck_raid_plan(&mut self, last_raid: &mut LastRaid) {
+        if last_raid.raid_id.is_empty() {
+            return;
+        }
+        
         let client = Client::new();
         let response = client
             .get(format!("https://raid-helper.dev/api/raidplan/{}", last_raid.raid_id))
