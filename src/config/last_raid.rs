@@ -2,11 +2,14 @@ use std::fs::{self, File};
 use std::path::Path;
 use std::io::{self, Write};
 
+use tracing::error;
+
 use crate::checker::check_player::PlayerData;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct LastRaid {
-    pub raid_url: String,   
+    pub raid_url: String,
+    pub raid_id: String,
     pub raid_name: String,
     pub players: Vec<PlayerData>
 }
@@ -15,7 +18,9 @@ impl Default for LastRaid    {
     fn default() -> Self {
         Self {
             raid_url: String::default(),
+            raid_id: String::default(),
             raid_name: String::default(),
+            
             players: Vec::new()
         }
     }
@@ -29,7 +34,7 @@ impl LastRaid {
             match serde_json::from_str(&content) {
                 Ok(config) => Ok(config),
                 Err(err) => {
-                    eprintln!("Error parsing config: {}. Creating new default config.", err);
+                    error!("Error parsing config: {}. Creating new default config.", err);
                     Ok(LastRaid::default())
                 }
             }

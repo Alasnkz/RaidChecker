@@ -1,22 +1,28 @@
-use std::sync::mpsc::{Receiver, Sender};
+use std::{collections::BTreeMap, sync::mpsc::{Receiver, Sender}};
 
 use regex::Regex;
 use reqwest::blocking::Client;
 use scraper::{Html, Selector};
 use tracing::info;
+use strsim::jaro_winkler;
+use crate::{checker::{buff_checker::BuffChecker, progress_checker::ProgressChecker, saved_checker::SavedChecker}, config::{self, realms::RealmJson, settings::RequiredRaid}};
 
-use crate::config::{self, realms::RealmJson};
-
-use super::{armory_checker::{AOTCStatus, ArmoryChecker}, raid_sheet::{Player, RaidHelperCheckerStatus, RaidHelperUIStatus}};
+use super::{armory_checker::{RaidProgressStatus, ArmoryChecker}, raid_sheet::{Player, RaidHelperCheckerStatus, RaidHelperUIStatus}};
 
 pub struct PlayerChecker {}
 
 fn converted_name_correct_realm(ourl: String, realms: &RealmJson) -> String {
     info!("Converting name to correct realm slug: {}", ourl);
     let mut url = ourl.to_lowercase();
+    let realm_name = url.split_once("/").unwrap().0;
     for realm in realms.realms.iter() {
-        if url.contains(&realm.name) {
-            url = url.replace(&realm.name, &realm.slug);
+        let score = jaro_winkler(&realm.name, &realm_name);
+        if score >= 0.9 || url.contains(&realm.name) {
+            if realm.name != realm_name {
+                info!("Correcting {} to {} (0.9 threshold)", realm_name, realm.name);
+            }
+            url = url.replace(&realm_name, &realm.slug);
+            break;
         }
     }
     return url;
@@ -60,18 +66,21 @@ pub struct PlayerData {
     pub discord_id: String,
     pub name: String,
     pub status: String,
-    pub unkilled_bosses: Vec<String>,
+    pub unkilled_bosses: Vec<(String, String)>,
     pub bad_gear: Vec<String>,
     pub bad_socket: Vec<String>,
     pub bad_special_item: Vec<String>,
     pub num_embelishments: i32,
     pub ilvl: i32,
-    pub saved_bosses: Vec<String>,
-    pub aotc_status: AOTCStatus,
-    pub buff_status: (i32, bool, i32, i32),
+    pub lvl: u8,
+    pub saved_bosses: Vec<(String, String)>,
+    pub aotc_status: BTreeMap<i32, (String, RaidProgressStatus)>,
+    pub buff_status: BTreeMap<i32, (String, i32, bool, i32, i32)>,
+    pub tier_count: i32,
     pub skip_reason: Option<String>,
     pub armory_url: String,
     pub queued: bool,
+    pub confirmed: u8
 }
 
 enum SearchPromptResult {
@@ -83,7 +92,7 @@ enum SearchPromptResult {
 impl PlayerChecker {
     pub fn check_player(player: &Player, thread_sender: &Sender<RaidHelperCheckerStatus>, thread_reciever: &Receiver<RaidHelperUIStatus>,
         settings: &config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig, realms: &config::realms::RealmJson,
-        raid_id: i32, raid_difficulty: i32, boss_kills: &Vec<i32>, check_saved_prev_difficulty: bool, char_url: Option<String>) -> Option<PlayerData>
+        raid_saved_check: &BTreeMap<i32, RequiredRaid>, char_url: Option<String>) -> Option<PlayerData>
     {
         let mut armory_data = None;
 
@@ -126,12 +135,15 @@ impl PlayerChecker {
                             bad_special_item: Vec::new(),
                             num_embelishments: -1,
                             ilvl: 0,
+                            lvl: 0,
                             saved_bosses: Vec::new(),
-                            aotc_status: super::armory_checker::AOTCStatus::None,
-                            buff_status: (0, false, 0, 0),
+                            aotc_status: BTreeMap::new(),
+                            buff_status: BTreeMap::new(),
+                            tier_count: -1,
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
-                            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" 
+                            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
+                            confirmed: 0
                         });
                     },
 
@@ -160,12 +172,15 @@ impl PlayerChecker {
                         bad_special_item: Vec::new(),
                         num_embelishments: -1,
                         ilvl: 0,
+                        lvl: 0,
                         saved_bosses: Vec::new(),
-                        aotc_status: super::armory_checker::AOTCStatus::None,
-                        buff_status: (0, false, 0, 0),
+                        aotc_status: BTreeMap::new(),
+                        buff_status: BTreeMap::new(),
+                        tier_count: -1,
                         skip_reason: Some("Skipped by user.".to_owned()),
                         armory_url: "".to_owned(),
-                        queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench"
+                        queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
+                        confirmed: 0
                     });
                 },
 
@@ -194,12 +209,15 @@ impl PlayerChecker {
                             bad_special_item: Vec::new(),
                             num_embelishments: -1,
                             ilvl: 0,
+                            lvl: 0,
                             saved_bosses: Vec::new(),
-                            aotc_status: super::armory_checker::AOTCStatus::None,
-                            buff_status: (0, false, 0, 0),
+                            aotc_status: BTreeMap::new(),
+                            buff_status: BTreeMap::new(),
+                            tier_count: -1,
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
-                            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench"
+                            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
+                            confirmed: 0
                         });
                     }
                     _ => return None
@@ -215,10 +233,17 @@ impl PlayerChecker {
         let (bad_enchant_gear, bad_socket_gear, bad_special_item, embelishments) = ArmoryChecker::check_gear(&data, settings, expansions);
         info!("Character has {} ilvl", data.character.average_item_level);
         let ilvl = data.character.average_item_level;
-        let saved_bosses = ArmoryChecker::check_saved_bosses(&data, raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty);
-        let aotc_report = ArmoryChecker::check_aotc(url.clone(), &data, expansions, raid_id);
+        let saved_bosses = SavedChecker::check_bosses(&data, &raid_saved_check);
+        let aotc_report = ProgressChecker::check_aotc(url.clone(), &data, expansions, &raid_saved_check);
         info!("--- END AOTC CHECK ---");
-        let buff_status = ArmoryChecker::check_raid_buff(url.clone(), expansions, raid_id);
+        let buff_status = BuffChecker::check_raids(url.clone(), expansions, &raid_saved_check);
+        let buff_status = if buff_status.is_err() {
+            BTreeMap::new()
+        } else {
+            buff_status.unwrap()
+        };
+
+        let tier_count = ArmoryChecker::check_tier_pieces(&data, expansions);
         info!("-------------------- Finished checking player {} -------------------", player.name);
         Some(PlayerData {
             discord_id: player.userId.clone(),
@@ -230,12 +255,15 @@ impl PlayerChecker {
             bad_special_item: bad_special_item,
             num_embelishments: embelishments,
             ilvl: ilvl,
+            lvl: data.character.level,
             saved_bosses: saved_bosses,
             aotc_status: aotc_report,
             buff_status: buff_status,
+            tier_count: tier_count,
             skip_reason: None,
             armory_url: url.clone(),
-            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench"
+            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
+            confirmed: 0
         })
     }
 

@@ -2,15 +2,21 @@ use std::fs::{self, File};
 use std::path::Path;
 use std::io::{self, Write};
 
+use tracing::error;
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
-pub struct ExpansionEnchants {
+pub struct ItemData {
+    #[serde(default="default_i64_0")]
+    pub release_time: i64,
     pub slot: String,
     #[serde(default="default_vec")]
     pub sub_slots: Vec<String>, // things like TWOHWEAPON... is a weapon.
     #[serde(default="default_vec")]
     pub enchant_ids: Vec<i32>,
-    pub lesser_enchant_ids: Option<Vec<i32>>, // Some enchants are lesser enchants, it would be useful to warn about them. Currently, these are only used for corruptions (TWW S2).
-    pub special_item_id: Option<Vec<i32>>,
+    #[serde(default="default_vec")]
+    pub lesser_enchant_ids: Vec<i32>, // Some enchants are lesser enchants, it would be useful to warn about them. Currently, these are only used for corruptions (TWW S2).
+    #[serde(default="default_vec")]
+    pub special_item_id: Vec<i32>,
     #[serde(default="default_false")]
     pub has_socket: bool,
     #[serde(default="default_vec")]
@@ -44,16 +50,44 @@ pub struct RaidReputation {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct RaidAchievements {
+    #[serde(default="default_i32_0")]
+    pub aotc: i32,
+    #[serde(default="default_i32_0")]
+    pub ce: i32,
+    #[serde(default="default_i32")]
+    pub dependency_id: i32, // Raid ID that actually holds the "AOTC" achievement, for tiers that have multiple raids but has one final boss.
+}
+
+impl Default for RaidAchievements {
+    fn default() -> Self {
+        Self {
+            aotc: 0,
+            ce: 0,
+            dependency_id: -1
+        }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ExpansionRaid {
+    #[serde(default="default_i64_0")]
+    pub release_time: i64,
     pub identifier: String,
     pub difficulty: Vec<RaidDifficulty>,
     pub id: i32,
     pub boss_names: Vec<String>,
-    #[serde(default="default_i32")]
-    pub aotc_achievement_id: i32,
-    #[serde(default="default_i32")]
-    pub ce_achievement_id: i32,
+    #[serde(default)]
+    pub achievements: RaidAchievements,
     pub reputation: Option<RaidReputation>,
+}
+
+fn default_i64_0() -> i64 {
+    0
+}
+
+fn default_i32_0() -> i32 {
+    0
 }
 
 fn default_i32() -> i32 {
@@ -63,24 +97,42 @@ fn default_i32() -> i32 {
 impl Default for ExpansionRaid {
     fn default() -> Self {
         Self {
+            release_time: 0,
             identifier: "Unknown".to_owned(),
             difficulty: Vec::new(),
             id: -1,
             boss_names: Vec::new(),
-            aotc_achievement_id: -1,
-            ce_achievement_id: -1,
+            achievements: RaidAchievements::default(),
             reputation: None,
         }
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct ExpansionSeasons {
     pub seasonal_identifier: String,
     #[serde(default="default_i64")]
     pub season_start: i64,
     pub raids: Vec<ExpansionRaid>,
-    pub seasonal_gear: Option<Vec<ExpansionEnchants>> // Contains data for things such as D.I.S.C. belt, or things like seasonal enchants (horrific visions)
+    #[serde(default="default_vec")]
+    pub seasonal_slot_data: Vec<ItemData>, // Contains data for things such as D.I.S.C. belt, or things like seasonal enchants (horrific visions)
+    #[serde(default="default_vec")]
+    pub tier_gear_ids: Vec<i32>, 
+    #[serde(default="default_i32")]
+    pub max_ilvl: i32
+}
+
+impl Default for ExpansionSeasons {
+    fn default() -> Self {
+        Self {
+            seasonal_identifier: "Pre Season".to_owned(),
+            season_start: 0,
+            raids: Vec::new(),
+            seasonal_slot_data: Vec::new(),
+            tier_gear_ids: Vec::new(),
+            max_ilvl: -1
+        }
+    }
 }
 
 fn default_i64() -> i64 {
@@ -88,34 +140,38 @@ fn default_i64() -> i64 {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
-pub struct Expansions {
+pub struct Expansion {
     pub name: String,
     pub identifier: String, // <-- TWW, MN, TLT
     pub reputation_slug: String,
+    pub max_lvl: u8,
     pub gear_embelishment_bonus_id: i32,
-    pub gear_enchants: Vec<ExpansionEnchants>,
+    pub slot_data: Vec<ItemData>,
     pub seasons: Vec<ExpansionSeasons>,
-    
+    #[serde(default="default_i64")]
+    pub expansion_start: i64,
     #[serde(skip)]
     pub latest_season: Option<ExpansionSeasons>,
 }
 
-impl Expansions {
+impl Expansion {
     pub fn find_raid_by_id(&self, raid_id: i32) -> Option<&ExpansionRaid> {
         self.seasons.iter()
             .find_map(|season| season.raids.iter().find(|raid| raid.id == raid_id))
     }
 }
 
-impl Default for Expansions {
+impl Default for Expansion {
     fn default() -> Self {
         Self {
             name: "Unknown".to_owned(),
             identifier: "Unknown".to_owned(),
             reputation_slug: "Unknown".to_owned(),
+            expansion_start: 0,
             gear_embelishment_bonus_id: -1,
-            gear_enchants: Vec::new(),
+            slot_data: Vec::new(),
             seasons: Vec::new(),
+            max_lvl: 100,
             latest_season: None,
         }
     }
@@ -127,9 +183,9 @@ pub struct ExpansionsConfig {
     pub modified: u64,
     pub latest_expansion_identifier: String,
     #[serde(default="default_vec")]
-    pub agnostic_gear_enchants: Vec<ExpansionEnchants>,
-    pub expansions: Vec<Expansions>,
-    pub latest_expansion: Option<Expansions>
+    pub agnostic_slot_data: Vec<ItemData>,
+    pub expansions: Vec<Expansion>,
+    pub latest_expansion: Option<Expansion>
 }
 
 impl Default for ExpansionsConfig {
@@ -138,7 +194,7 @@ impl Default for ExpansionsConfig {
             rhcu_version: "0.0.0".to_owned(),
             modified: 0,
             latest_expansion_identifier: "TWW".to_owned(),
-            agnostic_gear_enchants: Vec::new(),
+            agnostic_slot_data: Vec::new(),
             expansions: Vec::new(),
             latest_expansion: None
         }
@@ -161,7 +217,7 @@ impl ExpansionsConfig {
             match serde_json::from_str(&content) {
                 Ok(config) => Ok(config),
                 Err(err) => {
-                    eprintln!("Error parsing config: {}. Creating new default config.", err);
+                    error!("Error parsing config: {}. Creating new default config.", err);
                     Self::create_default(path)
                 }
             }

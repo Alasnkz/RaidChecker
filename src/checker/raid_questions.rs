@@ -1,6 +1,8 @@
+use std::collections::BTreeMap;
+
 use regex::Regex;
 
-use crate::{checker::{check_player::PlayerChecker, raid_sheet::PlayerOnlyCheckType}, config::{self, expansion_config::ExpansionRaid}};
+use crate::{checker::{check_player::PlayerChecker, raid_sheet::PlayerOnlyCheckType}, config::{self, expansion_config::ExpansionRaid, settings::{RequiredRaid, RequiredRaidDifficulty}}};
 
 #[derive(PartialEq)]
 pub(crate) enum QuestionState {
@@ -12,16 +14,13 @@ pub(crate) enum QuestionState {
 
 pub struct RaidCheckQuestions {
     pub(crate) state: QuestionState,
-    pub(crate) raid_id: i32,
-    pub(crate) difficulty_id: i32,
-
-    pub(crate) prev_raid_id: i32,
-    pub(crate) saved_bosses: Vec<i32>,
+    pub(crate) saved_bosses: BTreeMap<i32, RequiredRaid>,
     pub(crate) raid_helper_url: String,
     raid_helper_url_error: bool,
     pub(crate) ignore_url_question: bool,
-    pub(crate) previous_difficulty: bool,
-    pub(crate) player_only: PlayerOnlyCheckType
+    pub(crate) player_only: PlayerOnlyCheckType,
+    display_raid_id: i32,
+    display_difficulty_id: i32,
 }
 
 pub enum MatchType {
@@ -73,22 +72,20 @@ impl Default for RaidCheckQuestions {
     fn default() -> Self {
         Self {
             state: QuestionState::None,
-            raid_id: -1,
-            difficulty_id: 3,
-            prev_raid_id: 0,
-            saved_bosses: Vec::new(),
+            saved_bosses: BTreeMap::new(),
             raid_helper_url: String::default(),
             raid_helper_url_error: false,
             ignore_url_question: false,
-            previous_difficulty: true,
-            player_only: PlayerOnlyCheckType::None
+            player_only: PlayerOnlyCheckType::None,
+            display_raid_id: -1,
+            display_difficulty_id: 0,
         }
     }
 }
 
 impl RaidCheckQuestions {
-    pub fn ask_questions(&mut self, ctx: &eframe::egui::Context, expansion_config: &config::expansion_config::ExpansionsConfig, url: Option<String>, is_player: Option<PlayerOnlyCheckType>) -> Option<(String, i32, i32, Vec<i32>, bool, PlayerOnlyCheckType)> {
-        let mut send_it: Option<(String, i32, i32, Vec<i32>, bool, PlayerOnlyCheckType)> = None;
+    pub fn ask_questions(&mut self, ctx: &eframe::egui::Context, expansion_config: &config::expansion_config::ExpansionsConfig, url: Option<String>, is_player: Option<PlayerOnlyCheckType>) -> Option<(String, BTreeMap<i32, RequiredRaid>, PlayerOnlyCheckType)> {
+        let mut send_it: Option<(String, BTreeMap<i32, RequiredRaid>, PlayerOnlyCheckType)> = None;
         if url.clone().is_some() {
             self.raid_helper_url = url.clone().unwrap();
             self.ignore_url_question = true;
@@ -100,113 +97,162 @@ impl RaidCheckQuestions {
 
         match self.state {
             QuestionState::AskSaved => {
-                egui::Window::new("Would you like to check if the character(s) are saved?")
-                    .collapsible(false)
-                    .resizable(false)
-                    .show(ctx, |ui| {
-                        ui.label("Would you like to check if the character(s) are saved?");
-                        ui.horizontal(|ui| {
-                            if ui.button("Yes").on_hover_ui(|ui| {
-                                ui.label("Checking for Saved bosses will check if the user has killed the bosses on the specific difficulty this reset.");
-                            }).clicked() {
-                                self.state = QuestionState::AskSavedBosses;
-                            };
-
-                            if ui.button("No").on_hover_ui(|ui| {
-                                ui.label("Characters' boss kills will not be checked this reset.");
-                            }).clicked() {
+                if expansion_config.latest_expansion.is_none() || expansion_config.latest_expansion.as_ref().unwrap().latest_season.is_none() {
+                    egui::Window::new("There are no raids available to check.")
+                        .collapsible(false)
+                        .resizable(false)
+                        .show(ctx, |ui| {
+                            ui.label("There are no raids available to check.");
+                            if ui.button("OK").clicked() {
                                 self.state = QuestionState::AskRaidHelperURL;
-                                self.raid_id = if self.raid_id == -1 {
-                                    expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
-                                } else {
-                                    self.raid_id
-                                };
-                            };
-
-                            if ui.button("Cancel").on_hover_ui(|ui| {
-                                ui.label("Cancel the raid check.");
-                            }).clicked() {
-                                self.state = QuestionState::None;
                             }
                         });
-                    });
+                    return None;
+                }
+                else {
+                    egui::Window::new("Would you like to check if the character(s) are saved?")
+                        .collapsible(false)
+                        .resizable(false)
+                        .show(ctx, |ui| {
+                            ui.label("Would you like to check if the character(s) are saved?");
+                            ui.horizontal(|ui| {
+                                if ui.button("Yes").on_hover_ui(|ui| {
+                                    ui.label("Checking for Saved bosses will check if the user has killed the bosses on the specific difficulties this reset.");
+                                }).clicked() {
+                                    self.state = QuestionState::AskSavedBosses;
+                                };
+
+                                if ui.button("No").on_hover_ui(|ui| {
+                                    ui.label("Characters' boss kills will not be checked this reset.");
+                                }).clicked() {
+                                    self.state = QuestionState::AskRaidHelperURL;
+                                    self.display_raid_id = if self.display_raid_id == -1 {
+                                        if expansion_config.latest_expansion.is_none() || expansion_config.latest_expansion.as_ref().unwrap().latest_season.is_none() {
+                                            -1
+                                        } else {
+                                            expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
+                                        }
+                                    } else {
+                                        self.display_raid_id
+                                    };
+                                };
+
+                                if ui.button("Cancel").on_hover_ui(|ui| {
+                                    ui.label("Cancel the raid check.");
+                                }).clicked() {
+                                    self.state = QuestionState::None;
+                                }
+                            });
+                        });
+                    }
             },
 
             QuestionState::AskSavedBosses => {
 
-                self.raid_id = if self.raid_id == -1 {
-                    expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
+                self.display_raid_id = if self.display_raid_id == -1 {
+                    if expansion_config.latest_expansion.is_none() || expansion_config.latest_expansion.as_ref().unwrap().latest_season.is_none() {
+                        -1
+                    } else {
+                        expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
+                    }
                 } else {
-                    self.raid_id
+                    self.display_raid_id
                 };
                 
                 egui::Window::new("Saved bosses picker")
                     .collapsible(false)
                     .resizable(false)
                     .show(ctx, |ui| {
-                        
-                        if self.raid_id == -1 || expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).is_none() {
-                            self.raid_id = expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id;
+                        if self.saved_bosses.is_empty() || 
+                                self.saved_bosses.iter().find(|x| expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(*x.0).is_none()).is_some() {
+                            let latest_raid = expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id;
+                            self.saved_bosses.clear();
+                            self.saved_bosses.insert(latest_raid, RequiredRaid {
+                                id: latest_raid,
+                                difficulty: BTreeMap::new(),
+                            });
+                            self.display_difficulty_id = latest_raid;
                         }
 
                         egui::ComboBox::from_label("Selected raid")
-                            .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).unwrap_or(&ExpansionRaid::default()).identifier))
+                            .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.display_raid_id).unwrap_or(&ExpansionRaid::default()).identifier))
                             .show_ui(ui, |ui| {
-                                for seasons in expansion_config.latest_expansion.as_ref().unwrap().seasons.iter() {
-                                    for raid in seasons.raids.iter() {
-                                        ui.selectable_value(&mut self.raid_id, raid.id, raid.identifier.clone());
+                                for season in expansion_config.latest_expansion.as_ref().unwrap().seasons.iter() {
+                                    ui.label(season.seasonal_identifier.clone());
+                                    for raid in season.raids.iter() {
+                                        let text_colour = if self.saved_bosses.get(&raid.id).is_some() && self.saved_bosses.get(&raid.id).unwrap().difficulty.iter().any(|d| !d.1.boss_ids.is_empty()) {
+                                            egui::Color32::YELLOW
+                                        } 
+                                        else{ 
+                                            egui::Color32::WHITE
+                                        };
+                                        ui.selectable_value(&mut self.display_raid_id, raid.id, egui::RichText::new(raid.identifier.clone()).color(text_colour));
                                     }
-                                    if seasons.seasonal_identifier == expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_identifier {
+    
+                                    if season.seasonal_identifier == expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_identifier {
                                         break;
                                     }
                                 }
-                                
                             });
 
-                        if self.prev_raid_id != self.raid_id {
-                            self.saved_bosses.clear();
-                            self.prev_raid_id = self.raid_id;
+                        if self.saved_bosses.get(&self.display_raid_id).is_none() {
+                            self.saved_bosses.insert(self.display_raid_id, RequiredRaid {
+                                id: self.display_raid_id,
+                                difficulty: BTreeMap::new(),
+                            });
                         }
 
                         egui::ComboBox::from_label("Selected difficulty")
-                            .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.get(self.difficulty_id as usize).unwrap().difficulty_name))
+                            .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.display_raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.get(self.display_difficulty_id as usize).unwrap().difficulty_name))
                             .show_ui(ui, |ui| {
-                                for difficulty in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.iter() {
-                                    ui.selectable_value(&mut self.difficulty_id, difficulty.id, difficulty.difficulty_name.clone());
+                                for difficulty in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.display_raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.iter() {
+                                    let text_colour = if self.saved_bosses.get(&self.display_raid_id).is_some() && 
+                                        self.saved_bosses.get(&self.display_raid_id).unwrap().difficulty.get(&difficulty.id).is_some() &&
+                                        !self.saved_bosses.get(&self.display_raid_id).unwrap().difficulty.get(&difficulty.id).unwrap().boss_ids.is_empty() {
+                                        egui::Color32::YELLOW
+                                    } 
+                                    else{ 
+                                        egui::Color32::WHITE
+                                    };
+                                    ui.selectable_value(&mut self.display_difficulty_id, difficulty.id, egui::RichText::new(difficulty.difficulty_name.clone()).color(text_colour));
                                 }
                             });
+
+                        let raid_difficulty = self.saved_bosses.get_mut(&self.display_raid_id).unwrap().difficulty.entry(self.display_difficulty_id).or_insert(RequiredRaidDifficulty {
+                            boss_ids: Vec::new(),
+                        });
 
                         ui.horizontal(|ui| {
                             if ui.button("Enable all bosses").on_hover_ui(|ui| {
                                 ui.label("Enable all bosses for this raid.");
                             }).clicked() {
-                                self.saved_bosses.clear();
-                                for i in 0..expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.len() {
-                                    self.saved_bosses.push(i as i32);
+                                raid_difficulty.boss_ids.clear();
+                                for i in 0..expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.display_raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.len() {
+                                    raid_difficulty.boss_ids.push(i as i32);
                                 }
                             };
     
                             if ui.button("Disable all bosses").on_hover_ui(|ui| {
                                 ui.label("Disable all bosses for this raid.");
                             }).clicked() {
-                                self.saved_bosses.clear();
+                                raid_difficulty.boss_ids.clear();
                             };
                         });
                         
                         let mut bid = 0;
-                        for boss in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.iter() {
-                            let mut tmp = self.saved_bosses.contains(&bid);
+                        for boss in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.display_raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.iter() {
+                            let mut tmp = raid_difficulty.boss_ids.contains(&bid);
                             if ui.checkbox(&mut tmp, boss).changed() {
                                 if tmp {
-                                    self.saved_bosses.push(bid);
+                                    raid_difficulty.boss_ids.push(bid);
                                 } else {
-                                    self.saved_bosses.retain(|&x| x != bid);
+                                    raid_difficulty.boss_ids.retain(|&x| x != bid);
                                 }
                             }
                             bid += 1;
                         }
+                        
                         ui.label("");
-                        ui.checkbox(&mut self.previous_difficulty, "Check if saved to the previous difficulty").on_hover_text("Check if the character has killed the selected bosses on the previous difficulty this reset. Does NOT count LFR.");
                         ui.horizontal(|ui| {
                             if ui.button("Confirm").on_hover_ui(|ui| {
                                 ui.label("You will check every character for kills on the selected bosses on the selected difficulty this reset.");
@@ -226,7 +272,7 @@ impl RaidCheckQuestions {
 
             QuestionState::AskRaidHelperURL => {
                 if self.ignore_url_question && self.raid_helper_url.len() > 0 {
-                    send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only.clone()));
+                    send_it = Some((self.raid_helper_url.clone(), self.saved_bosses.clone(), self.player_only.clone()));
                     self.saved_bosses.clear();
                     self.raid_helper_url_error = false;
                     self.state = QuestionState::None;
@@ -243,7 +289,8 @@ impl RaidCheckQuestions {
                             ui.label("Please input the raid-helper URL that contains the signed characters you want to check.");
                         }
 
-                        ui.text_edit_singleline(&mut self.raid_helper_url);
+                        let response = ui.text_edit_singleline(&mut self.raid_helper_url);
+                        let pressed_enter = response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
                         if self.raid_helper_url_error == true {
                             ui.label(egui::RichText::new("Invalid Raid Helper URL!").color(egui::Color32::RED));
@@ -252,9 +299,9 @@ impl RaidCheckQuestions {
                         ui.horizontal(|ui| {
                             if ui.button("Confirm").on_hover_ui(|ui| {
                                 ui.label("Sign ups on this URL will be checked.");
-                            }).clicked() {
+                            }).clicked() || pressed_enter == true {
                                 if self.player_only == PlayerOnlyCheckType::Player {
-                                    send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only.clone()));
+                                    send_it = Some((self.raid_helper_url.clone(), self.saved_bosses.clone(), self.player_only.clone()));
                                     self.saved_bosses.clear();
                                     self.raid_helper_url_error = false;
                                     self.state = QuestionState::None;
@@ -263,7 +310,7 @@ impl RaidCheckQuestions {
                                     if let Some(url) = check_raidhelper_url(self.raid_helper_url.clone()) {
                                         self.raid_helper_url = url;
                                         
-                                        send_it = Some((self.raid_helper_url.clone(), self.raid_id, self.difficulty_id, self.saved_bosses.clone(), self.previous_difficulty, self.player_only.clone()));
+                                        send_it = Some((self.raid_helper_url.clone(), self.saved_bosses.clone(), self.player_only.clone()));
                                         self.saved_bosses.clear();
                                         self.raid_helper_url_error = false;
                                         self.state = QuestionState::None;
@@ -273,6 +320,8 @@ impl RaidCheckQuestions {
                                     }
                                 }
                             };
+
+                            
 
                             if ui.button("Cancel").on_hover_ui(|ui| {
                                 ui.label("Cancel the raid check.");

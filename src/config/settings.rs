@@ -1,7 +1,9 @@
-use std::{fs::{self, File}, io::{self, Write}, path::Path};
+use std::{collections::BTreeMap, fs::{self, File}, io::{self, Write}, path::Path};
+
+use tracing::error;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub struct EnchantmentSlotSetting {
+pub struct SlotSetting {
     pub require_slot: bool,
     pub require_latest: bool,
     pub require_sockets: i32,
@@ -26,6 +28,7 @@ pub enum PriorityChecks {
     Unkilled = 4,
     SpecialItem = 5,
     BadSocket = 6,
+    MissingTier = 7,
 }
 
 impl PriorityChecks {
@@ -38,11 +41,12 @@ impl PriorityChecks {
             PriorityChecks::Unkilled => "Bosses not killed",
             PriorityChecks::SpecialItem => "Missing Special Item",
             PriorityChecks::BadSocket => "Sockets Missing",
+            PriorityChecks::MissingTier => "Missing Tier",
         }
     }
 }
 
-impl Default for EnchantmentSlotSetting {
+impl Default for SlotSetting {
     fn default() -> Self {
         Self {
             require_slot: false,
@@ -56,24 +60,24 @@ impl Default for EnchantmentSlotSetting {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub struct EnchantmentSlots {
-    pub back: EnchantmentSlotSetting,
-    pub chest: EnchantmentSlotSetting,
-    pub foot: EnchantmentSlotSetting,
-    pub hand: EnchantmentSlotSetting,
-    pub head: EnchantmentSlotSetting,
-    pub ring: EnchantmentSlotSetting,
-    pub leg: EnchantmentSlotSetting,
-    pub neck: EnchantmentSlotSetting,
-    pub shoulder: EnchantmentSlotSetting,
-    pub waist: EnchantmentSlotSetting,
-    pub weapon: EnchantmentSlotSetting,
-    pub wrist: EnchantmentSlotSetting,
+pub struct Slots {
+    pub back: SlotSetting,
+    pub chest: SlotSetting,
+    pub foot: SlotSetting,
+    pub hand: SlotSetting,
+    pub head: SlotSetting,
+    pub ring: SlotSetting,
+    pub leg: SlotSetting,
+    pub neck: SlotSetting,
+    pub shoulder: SlotSetting,
+    pub waist: SlotSetting,
+    pub weapon: SlotSetting,
+    pub wrist: SlotSetting,
 }
 
-impl EnchantmentSlots {
+impl Slots {
     // DIRTY!
-    pub fn as_array_mut(&mut self) -> [(&mut EnchantmentSlotSetting, &str); 12] {
+    pub fn as_array_mut(&mut self) -> [(&mut SlotSetting, &str); 12] {
         [
             (&mut self.back, "cloak"),
             (&mut self.chest, "chest"),
@@ -91,7 +95,7 @@ impl EnchantmentSlots {
     }
 
     #[allow(dead_code)]
-    pub fn as_array(&self) -> [(EnchantmentSlotSetting, &str); 12] {
+    pub fn as_array(&self) -> [(SlotSetting, &str); 12] {
         [
             (self.back.clone(), "cloak"),
             (self.chest.clone(), "chest"),
@@ -108,33 +112,42 @@ impl EnchantmentSlots {
         ]
     }
 }
-impl Default for EnchantmentSlots {
+impl Default for Slots {
     fn default() -> Self {
         Self {
-            back: EnchantmentSlotSetting::default(),
-            chest: EnchantmentSlotSetting::default(),
-            foot: EnchantmentSlotSetting::default(),
-            hand: EnchantmentSlotSetting::default(),
-            head: EnchantmentSlotSetting::default(),
-            ring: EnchantmentSlotSetting::default(),
-            leg: EnchantmentSlotSetting::default(),
-            neck: EnchantmentSlotSetting::default(),
-            shoulder: EnchantmentSlotSetting::default(),
-            waist: EnchantmentSlotSetting::default(),
-            weapon: EnchantmentSlotSetting::default(),
-            wrist: EnchantmentSlotSetting::default()
+            back: SlotSetting::default(),
+            chest: SlotSetting::default(),
+            foot: SlotSetting::default(),
+            hand: SlotSetting::default(),
+            head: SlotSetting::default(),
+            ring: SlotSetting::default(),
+            leg: SlotSetting::default(),
+            neck: SlotSetting::default(),
+            shoulder: SlotSetting::default(),
+            waist: SlotSetting::default(),
+            weapon: SlotSetting::default(),
+            wrist: SlotSetting::default()
         }
     }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct RequiredRaidDifficulty {
+    pub boss_ids: Vec<i32>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct RequiredRaid {
+    pub id: i32,
+    pub difficulty: BTreeMap<i32, RequiredRaidDifficulty>
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Settings {
     pub average_ilvl: i32,
     pub embelishments: i32,
-    pub raid_id: i32,
-    pub raid_difficulty: i32,
-    pub raid_difficulty_boss_id_kills: Vec<i32>,
-    pub enchantments: EnchantmentSlots,
+    pub required_raids: BTreeMap<i32, RequiredRaid>,
+    pub slots: Slots,
     pub skip_colour: Option<[u8; 4]>,
     pub ilvl_colour: Option<[u8; 4]>,
     pub saved_colour: Option<[u8; 4]>,
@@ -142,6 +155,7 @@ pub struct Settings {
     pub bad_gear_colour: Option<[u8; 4]>,
     pub bad_socket_colour: Option<[u8; 4]>,
     pub bad_special_item_colour: Option<[u8; 4]>,
+    pub missing_tier_colour: Option<[u8; 4]>,
     pub buff_colour: Option<[u8; 4]>,
     #[serde(default = "default_check_priority")]
     pub check_priority: Vec<PriorityChecks>,
@@ -156,6 +170,7 @@ fn default_check_priority() -> Vec<PriorityChecks> {
         PriorityChecks::SpecialItem,
         PriorityChecks::BadSocket,
         PriorityChecks::RaidBuff,
+        PriorityChecks::MissingTier,
     ]
 }
 
@@ -164,10 +179,8 @@ impl Default for Settings {
         Self {
             average_ilvl: 0,
             embelishments: 0,
-            raid_id: -1,
-            raid_difficulty: 0,
-            raid_difficulty_boss_id_kills: Vec::new(),
-            enchantments: EnchantmentSlots::default(),
+            required_raids: BTreeMap::new(),
+            slots: Slots::default(),
             skip_colour: Some([0xFF, 0xFF, 0x0, 0xFF]),
             ilvl_colour: Some([0x8B, 0x0, 0x0, 0xFF]),
             saved_colour: Some([0xFF, 0x0, 0x0, 0xFF]),
@@ -175,6 +188,7 @@ impl Default for Settings {
             bad_gear_colour: Some([0x8B, 0x0, 0x0, 0xFF]),
             bad_socket_colour: Some([0x8B, 0x0, 0x0, 0xFF]),
             bad_special_item_colour: Some([0x8B, 0x0, 0x0, 0xFF]),
+            missing_tier_colour: Some([218, 0, 255, 255]),
             buff_colour: Some([0xFF, 0xA5, 0x0, 0xFF]),
             check_priority: vec![
                 PriorityChecks::SavedKills,
@@ -207,7 +221,7 @@ impl Settings {
                 Ok(config) => { Ok(config) }
 
                 Err(err) => {
-                    eprintln!("Error parsing config: {}. Creating new default config.", err);
+                    error!("Error parsing config: {}. Creating new default config.", err);
                     Self::create_default(path)
                 }
             }.unwrap();
@@ -244,12 +258,20 @@ impl Settings {
                 settings.bad_special_item_colour = Some([0x8B, 0x0, 0x0, 0xFF]);
             }
 
+            if settings.missing_tier_colour == None {
+                settings.missing_tier_colour = Some([218, 0, 255, 255]);
+            }
+
             if settings.check_priority.iter().find(|x| **x == PriorityChecks::BadSocket).is_none() {
                 settings.check_priority.push(PriorityChecks::BadSocket);
             }
 
             if settings.check_priority.iter().find(|x: &&PriorityChecks| **x == PriorityChecks::SpecialItem).is_none() {
                 settings.check_priority.push(PriorityChecks::SpecialItem);
+            }
+
+            if settings.check_priority.iter().find(|x: &&PriorityChecks| **x == PriorityChecks::MissingTier).is_none() {
+                settings.check_priority.push(PriorityChecks::MissingTier);
             }
             Ok(settings)
         } else {

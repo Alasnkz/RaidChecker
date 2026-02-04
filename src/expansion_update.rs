@@ -40,8 +40,7 @@ impl ExpansionUpdateChecker {
             return false;
         }
 
-        if self.remote_data.is_some() == false || self.remote_data.as_ref().unwrap().len() == 0
-        {
+        if self.remote_data.is_some() == false || self.remote_data.as_ref().unwrap().len() == 0 {
             warn!("Remote expansions.json data is empty or not available.");
             return false;
         }

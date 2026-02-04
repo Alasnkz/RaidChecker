@@ -1,8 +1,8 @@
 use reqwest::blocking::Client;
 use tracing::info;
-use std::{sync::mpsc::{self, Receiver, Sender}, thread};
+use std::{collections::BTreeMap, sync::mpsc::{self, Receiver, Sender}, thread};
 
-use crate::config::{self, last_raid::{LastRaid}};
+use crate::config::{self, last_raid::LastRaid, settings::RequiredRaid};
 
 use super::check_player::{PlayerChecker, PlayerData};
 
@@ -12,10 +12,14 @@ use super::check_player::{PlayerChecker, PlayerData};
 // UI calls are done to send data such as progress
 // WHen search is required we'll lock and await main thread to handle search UI
 
-
+pub static RAID_PLAN_CONFIRMED: u8 = 3;
+pub static RAID_PLAN_UNCONFIRMED: u8 = 2;
+pub static RAID_PLAN_CANCELLED: u8 = 1;
+pub static RAID_PLAN_NONE: u8 = 0;
 
 #[derive(serde::Deserialize, Clone)]
 pub struct Player {
+    pub position: i32,
     pub specName: Option<String>,
     pub name: String,
     pub roleName: Option<String>,
@@ -28,7 +32,20 @@ pub struct Player {
 struct RaidHelper {
     #[serde(alias = "displayTitle")]
     name: String,
-    signUps: Vec<Player>
+    signUps: Vec<Player>,
+    id: String
+}
+
+#[derive(serde::Deserialize)]
+struct RaidHelperRaidPlanSlot {
+    name: String,
+    isConfirmed: String,
+    id: String
+}
+
+#[derive(serde::Deserialize)]
+struct RaidHelperRaidPlan {
+    slots: Vec<RaidHelperRaidPlanSlot>
 }
 
 #[derive(PartialEq)]
@@ -60,6 +77,7 @@ pub struct RaidSheet {
 impl Default for Player {
     fn default() -> Self {
         Self {
+            position: 0,
             specName: Some("N/A".to_string()),
             name: String::default(),
             roleName: None,
@@ -146,7 +164,7 @@ impl RaidSheet {
     }
 
     pub fn init(&mut self, url: String, is_player_only: PlayerOnlyCheckType, settings: config::settings::Settings, expansions: config::expansion_config::ExpansionsConfig, realms: config::realms::RealmJson,
-        raid_id: i32, raid_difficulty: i32, boss_kills: Vec<i32>, check_saved_prev_difficulty: bool, mut last_raid: LastRaid)
+        raid_saved_check: BTreeMap<i32, RequiredRaid>, mut last_raid: LastRaid)
     {
         let (uis, thread_reciever) = mpsc::channel();
         let (thread_sender, uir) = mpsc::channel();
@@ -160,7 +178,7 @@ impl RaidSheet {
                 let mut player = Player::default();
                 player.name = url.clone();
 
-                let player_data = PlayerChecker::check_player(&player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, raid_id, raid_difficulty, &boss_kills, check_saved_prev_difficulty, None);
+                let player_data = PlayerChecker::check_player(&player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, None);
                 if player_data.is_some() {
                     if let PlayerOnlyCheckType::PlayerFromSheet(data) = is_player_only {
                         let _ = thread_sender.send(RaidHelperCheckerStatus::PlayerResultSheet(player_data.unwrap(), data));                        
@@ -177,7 +195,7 @@ impl RaidSheet {
 
         thread::spawn(move || {
             let client = Client::new();
-            let response = client
+            let mut response = client
                 .get(url.clone())
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
                 .send();
@@ -207,9 +225,11 @@ impl RaidSheet {
                 last_raid.players.clear();
             }
 
-            let viable: Vec<&Player> = raid_response.signUps.iter().filter(|x| should_check_player(x)).collect();
+            let mut viable: Vec<&Player> = raid_response.signUps.iter().filter(|x| should_check_player(x)).collect();
+            viable.sort_by(|a, b| a.position.partial_cmp(&b.position).unwrap());
 
             let mut vec_player = Vec::new();
+
             for player in viable.iter() {
                 let player_url = if last_raid.players.iter().find(|x| x.discord_id == player.userId && x.name == player.name).is_some() {
                     Some(last_raid.players.iter().find(|x| x.discord_id == player.userId).unwrap().armory_url.clone())
@@ -218,7 +238,7 @@ impl RaidSheet {
                 };
 
                 let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("{} {}/{}", player.name, count, viable.len())));
-                let player_data = PlayerChecker::check_player(player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, raid_id, raid_difficulty, &boss_kills, check_saved_prev_difficulty, player_url);
+                let player_data = PlayerChecker::check_player(player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, player_url);
                 if player_data.is_some() {
                     vec_player.push(player_data.unwrap());
                 } else {
@@ -232,39 +252,99 @@ impl RaidSheet {
                         bad_special_item: Vec::new(),
                         num_embelishments: -1,
                         ilvl: 0,
+                        lvl: 0,
                         saved_bosses: Vec::new(),
-                        aotc_status: super::armory_checker::AOTCStatus::None,
-                        buff_status: (0, false, 0, 0),
+                        aotc_status: BTreeMap::new(),
+                        buff_status: BTreeMap::new(),
+                        tier_count: -1,
                         skip_reason: Some("Could not find player".to_owned()),
                         armory_url: "".to_owned(),
-                        queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" 
+                        queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" ,
+                        confirmed: 0
                     });
                 }
                 
                 count += 1;
             }
 
+            response = client
+                .get(format!("https://raid-helper.dev/api/raidplan/{}", raid_response.id))
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+                .send();
+
+            if !response.is_err() {
+                let raid_plan: Result<RaidHelperRaidPlan, serde_json::Error>  = serde_json::from_str(&response.unwrap().text().unwrap());
+                if raid_plan.is_ok() {
+                    let raid_plan = raid_plan.unwrap();
+                    for slot in raid_plan.slots.iter() {
+                        if let Some(player_data) = vec_player.iter_mut().find(|x| x.discord_id == slot.id) {
+                            if slot.isConfirmed.to_lowercase() == "confirmed" {
+                                player_data.confirmed = RAID_PLAN_CONFIRMED;
+                            } else if slot.isConfirmed.to_lowercase() == "cancelled" {
+                                player_data.confirmed = RAID_PLAN_CANCELLED;
+                            } else {
+                                player_data.confirmed = RAID_PLAN_UNCONFIRMED;
+                            }
+                        }
+                    }
+                }
+            }
+            
             last_raid.players = vec_player.clone();
             last_raid.raid_url = url.clone();
             last_raid.raid_name = raid_response.name.clone();
+            last_raid.raid_id = raid_response.id.clone();
             last_raid.save();
 
             let _ = thread_sender.send(RaidHelperCheckerStatus::CheckResults(LastRaid {
                 raid_url: url,
                 raid_name: raid_response.name,
-                players: vec_player
+                raid_id: raid_response.id,
+                players: vec_player,
             }));
        });
     }
 
-    fn update_wait_state(&mut self, ctx: &egui::Context) {
-        self.frame_counter += 1;
-    
-        if self.frame_counter % 10 == 0 {
-            self.wait_counter = (self.wait_counter + 1) % 4;
+    pub fn recheck_raid_plan(&mut self, last_raid: &mut LastRaid) {
+        let client = Client::new();
+        let response = client
+            .get(format!("https://raid-helper.dev/api/raidplan/{}", last_raid.raid_id))
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+            .send();
+
+        if !response.is_err() {
+            let raid_plan: Result<RaidHelperRaidPlan, serde_json::Error>  = serde_json::from_str(&response.unwrap().text().unwrap());
+            self.active_players.iter_mut().for_each(|x| x.confirmed = RAID_PLAN_NONE);
+            self.queued_players.iter_mut().for_each(|x| x.confirmed = RAID_PLAN_NONE);
+
+            if raid_plan.is_ok() {
+                let raid_plan = raid_plan.unwrap();
+                for slot in raid_plan.slots.iter() {
+                    if let Some(player_data) = self.active_players.iter_mut().find(|x| x.discord_id == slot.id) {
+                        info!("Setting confirmation status for player {} to {}", player_data.name, slot.isConfirmed);
+                        if slot.isConfirmed.to_lowercase() == "confirmed" {
+                            player_data.confirmed = RAID_PLAN_CONFIRMED;
+                        } else if slot.isConfirmed.to_lowercase() == "cancelled" {
+                            player_data.confirmed = RAID_PLAN_CANCELLED;
+                        } else {
+                            player_data.confirmed = RAID_PLAN_UNCONFIRMED;
+                        }
+                    } else if let Some(player_data) = self.queued_players.iter_mut().find(|x| x.discord_id == slot.id) {
+                        info!("Setting confirmation status for player {} to {}", player_data.name, slot.isConfirmed);
+                        if slot.isConfirmed.to_lowercase() == "confirmed" {
+                            player_data.confirmed = RAID_PLAN_CONFIRMED;
+                        } else if slot.isConfirmed.to_lowercase() == "cancelled" {
+                            player_data.confirmed = RAID_PLAN_CANCELLED;
+                        } else {
+                            player_data.confirmed = RAID_PLAN_UNCONFIRMED;
+                        }
+                    }
+                }
+            }
+
+            last_raid.players = self.active_players.iter().cloned().chain(self.queued_players.iter().cloned()).collect();
+            last_raid.save();
         }
-    
-        ctx.request_repaint();
     }
 
     pub fn draw(&mut self, ctx: &egui::Context, last_raid: &mut config::last_raid::LastRaid, just_checked: &mut bool,
@@ -363,20 +443,24 @@ impl RaidSheet {
                     .collapsible(false)
                     .resizable(false)
                     .show(ctx, |ui| {
-                        ui.label("Initializing...");
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label("Getting started");
+                        });
                     });
             },
 
             RaidSheetState::Checking(_msg) => {
-                self.update_wait_state(ctx);
                 egui::Window::new("Raid Helper - Parsing Players")
                     .collapsible(false)
                     .resizable(false)
                     .show(ctx, |ui| {
-                        let dots = ".".repeat(self.wait_counter);
-                        ui.label(match &self.state {
-                            RaidSheetState::Checking(msg) => format!("Checking {}{}", msg, dots),
-                            _ => "No data yet.".to_owned()
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(match &self.state {
+                                RaidSheetState::Checking(msg) => format!("Checking {}", msg),
+                                _ => "No data yet.".to_owned()
+                            });
                         });
                     });
             },
@@ -487,13 +571,14 @@ impl RaidSheet {
             },
 
             RaidSheetState::Wait => {
-                self.update_wait_state(ctx);
                 egui::Window::new("Raid Helper - Waiting")
                     .collapsible(false)
                     .resizable(false)
                     .show(ctx, |ui| {
-                        let dots = ".".repeat(self.wait_counter);
-                        ui.label(format!("Please wait{}", dots));
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(format!("Please wait"));
+                        });
                     });
             },
 

@@ -19,7 +19,10 @@ use tracing_subscriber::layer::Layer;
 use tracing_subscriber::{fmt, layer::SubscriberExt, Registry};
 use tracing_subscriber::EnvFilter;
 
-use crate::{checker::{check_player::slug_to_name, raid_sheet::{Player, PlayerOnlyCheckType}}, config::expansion_config::{ExpansionSeasons, Expansions}, expansion_update::ExpansionUpdateChecker};
+use crate::{checker::{check_player::slug_to_name, raid_sheet::{Player, PlayerOnlyCheckType}}, config::expansion_config::{ExpansionSeasons, Expansion}, expansion_update::ExpansionUpdateChecker};
+
+static SHOULD_RECHECK_ALL: u8 = 1;
+static SHOULD_RECHECK_ATTENDANCE: u8 = 2;
 
 fn init_logging() {
     let log_file = OpenOptions::new()
@@ -119,12 +122,31 @@ impl Default for RaidHelperCheckerApp {
 
 impl RaidHelperCheckerApp{
     pub fn reload_data(&mut self) {
-        self.expansions = ExpansionsConfig::read_or_create("expansions.json").unwrap();
-        self.expansions.latest_expansion = Some(self.expansions.expansions.iter().find(|x| x.identifier == self.expansions.latest_expansion_identifier).unwrap_or(&Expansions::default()).clone());
+        self.expansions = ExpansionsConfig::read_or_create("expansions.json").unwrap();  
+        let mut expansion_ts_start = 0;
+        let mut expansion_identifier = String::new();
+        for expansion in self.expansions.expansions.iter() {
+            if expansion.expansion_start >= expansion_ts_start {
+                if expansion.expansion_start != 0 {
+                    let expansion_start: DateTime<Utc> = Utc.timestamp_opt(expansion.expansion_start, 0).unwrap();
+                    let now: DateTime<Utc> = Utc::now();
+                    if expansion_start <= now {
+                        expansion_identifier = expansion.identifier.clone();
+                        expansion_ts_start = expansion.expansion_start;
+                    } else {
+                        info!("{} has not started yet, ignoring. Will activate on {}", expansion.name, expansion_start.format("%A, %B %d %Y").to_string());
+                    }
+                } else if expansion.expansion_start >= 0 && expansion_ts_start == 0 {
+                    expansion_identifier = expansion.identifier.clone();
+                    expansion_ts_start = expansion.expansion_start;
+                }
+            }
+        }
+        self.expansions.latest_expansion = Some(self.expansions.expansions.iter().find(|x| x.identifier == expansion_identifier).unwrap_or(&Expansion::default()).clone());
 
         let mut season_ts_start = 0;
         let mut season_id = String::new();
-        for season in self.expansions.latest_expansion.as_ref().unwrap().seasons.iter() {
+        for season in self.expansions.latest_expansion.clone().unwrap().seasons.iter() {
             if season.season_start >= season_ts_start {
                 if season.season_start != 0 {
                     let season_start: DateTime<Utc> = Utc.timestamp_opt(season.season_start, 0).unwrap();
@@ -133,7 +155,8 @@ impl RaidHelperCheckerApp{
                         season_id = season.seasonal_identifier.clone();
                         season_ts_start = season.season_start;
                     } else {
-                        info!("{} {} has not started yet, ignoring. Will activate on {}", self.expansions.latest_expansion_identifier, season.seasonal_identifier, season_start.format("%A, %B %d %Y").to_string());
+                        info!("{} {} has not started yet, ignoring. Will activate on {}", self.expansions.latest_expansion.as_ref().unwrap().identifier, season.seasonal_identifier, season_start.format("%A, %B %d %Y").to_string());
+                        self.expansions.latest_expansion.as_mut().unwrap().seasons.retain(|x| x.seasonal_identifier != season.seasonal_identifier);                       
                     }
                 } else {
                     season_id = season.seasonal_identifier.clone();
@@ -142,13 +165,43 @@ impl RaidHelperCheckerApp{
             }
         }
         self.expansions.latest_expansion.as_mut().unwrap().latest_season = self.expansions.latest_expansion.as_ref().unwrap().seasons.iter().find(|x| x.seasonal_identifier == season_id).cloned();
-        self.win_title = format!("Raid Checker ({} {})", self.expansions.latest_expansion.as_ref().unwrap().identifier, self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap_or(&ExpansionSeasons::default()).seasonal_identifier);
+        self.win_title = format!("Raid Checker ({} {})", self.expansions.latest_expansion.as_ref().unwrap().name, self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap_or(&ExpansionSeasons::default()).seasonal_identifier);
         self.win_title_change = true;
-        self.settings.raid_id = if self.settings.raid_id == -1 {
-            self.expansions.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id
-        } else {
-            self.settings.raid_id
-        };
+
+        if self.expansions.latest_expansion.as_ref().unwrap().latest_season.is_none() {
+            return;
+        }
+
+        for raid in self.expansions.latest_expansion.clone().unwrap().latest_season.unwrap().raids.iter() {
+            if raid.release_time != 0 {
+                let raid_launch: DateTime<Utc> = Utc.timestamp_opt(raid.release_time, 0).unwrap();
+                let now: DateTime<Utc> = Utc::now();
+                if raid_launch > now {
+                    info!("{} raid {} ({}) has not launched yet, ignoring. Will activate on {}", self.expansions.latest_expansion.as_ref().unwrap().name, raid.identifier, self.expansions.latest_expansion.clone().unwrap().latest_season.unwrap().seasonal_identifier, raid_launch.format("%A, %B %d %Y").to_string());
+                    self.expansions.latest_expansion.as_mut().unwrap().seasons.last_mut().unwrap().raids.retain(|x| x.identifier != raid.identifier);
+                    self.expansions.latest_expansion.as_mut().unwrap().latest_season.as_mut().unwrap().raids.retain(|x| x.identifier != raid.identifier);
+                }
+            }
+        }
+
+        for item in self.expansions.latest_expansion.as_mut().unwrap().latest_season.clone().unwrap().seasonal_slot_data.iter_mut() {
+            if item.release_time != 0 {
+                let release_time: DateTime<Utc> = Utc.timestamp_opt(item.release_time, 0).unwrap();
+                let now: DateTime<Utc> = Utc::now();
+                if release_time > now {
+                    info!("{} {} gear {} has not launched yet, ignoring. Will activate on {}", self.expansions.latest_expansion.as_ref().unwrap().name, self.expansions.latest_expansion.clone().unwrap().latest_season.unwrap().seasonal_identifier, item.slot, release_time.format("%A, %B %d %Y").to_string());
+                    self.expansions.latest_expansion.as_mut().unwrap().seasons.last_mut().unwrap().seasonal_slot_data.retain(|x| x.slot != item.slot);
+                    self.expansions.latest_expansion.as_mut().unwrap().latest_season.as_mut().unwrap().seasonal_slot_data.retain(|x| x.slot != item.slot);
+                }
+            }
+        }
+
+        if self.expansions.latest_expansion_identifier != expansion_identifier {
+            info!("Resetting saved raids data, expansion has changed.");
+            self.settings.required_raids.clear();
+        }
+
+        self.expansions.latest_expansion_identifier = expansion_identifier.clone();
     }
 }
 
@@ -218,7 +271,7 @@ impl eframe::App for RaidHelperCheckerApp {
                 });
             });
 
-            let mut should_recheck = false;
+            let mut should_recheck: u8 = 0;
             let recheck_player = self.signup_ui.draw_signups(ctx, &mut self.settings, &self.raid_sheet.active_players, &self.raid_sheet.queued_players, &mut should_recheck, &mut self.clear_target, &mut self.checked_player);
             if recheck_player.is_some() {
                 let armory_url = recheck_player.as_ref().unwrap().armory_url.clone();
@@ -235,16 +288,23 @@ impl eframe::App for RaidHelperCheckerApp {
                 let _ = self.raid_questions.ask_questions(ctx, &self.expansions, Some(format!("{}-{}", parts[0], realm.unwrap())), Some(PlayerOnlyCheckType::PlayerFromSheet(recheck_player.as_ref().unwrap().discord_id.clone())));
             }
 
-            if should_recheck {
+            if should_recheck == SHOULD_RECHECK_ALL {
                 self.raid_questions.state = QuestionState::AskSaved;
                 let _ = self.raid_questions.ask_questions(ctx,  &self.expansions, Some(self.last_raid.raid_url.clone()), Some(PlayerOnlyCheckType::None));
+            } else if should_recheck == SHOULD_RECHECK_ATTENDANCE {
+                egui::Window::new("Rechecking raid plan")
+                    .show(ctx, |ui| {
+                        ui.label("Rechecking raid plan attendance data...");
+                    });
+                
+                self.raid_sheet.recheck_raid_plan(&mut self.last_raid);
             }
 
             if self.raid_questions.state != checker::raid_questions::QuestionState::None {
                 let ret = self.raid_questions.ask_questions(ctx, &self.expansions, None, None);
                 if ret.is_some() {
-                    let (url, raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty, player_only) = ret.unwrap();
-                    self.raid_sheet.init(url, player_only.clone(), self.settings.clone(), self.expansions.clone(), self.realms.clone(), raid_id, raid_difficulty, boss_kills, check_saved_prev_difficulty, self.last_raid.clone());
+                    let (url, boss_kills, player_only) = ret.unwrap();
+                    self.raid_sheet.init(url, player_only.clone(), self.settings.clone(), self.expansions.clone(), self.realms.clone(), boss_kills, self.last_raid.clone());
 
                     if player_only != PlayerOnlyCheckType::Player && player_only != PlayerOnlyCheckType::None {
                         self.raid_questions.raid_helper_url = String::new();

@@ -1,8 +1,8 @@
-use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui};
+use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui, epaint::color};
 use tracing::info;
 use tracing_subscriber::fmt::format;
 
-use crate::{checker::{armory_checker::AOTCStatus, check_player::PlayerData, raid_sheet::Player}, config::{self, settings::PriorityChecks}};
+use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_UNCONFIRMED}}, config::{self, settings::PriorityChecks}};
 
 pub struct SignUpsUI {
     pub target_player: Option<PlayerData>
@@ -18,7 +18,7 @@ impl Default for SignUpsUI {
 
 impl SignUpsUI {
     pub fn draw_signups(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, primary_people: &Vec<PlayerData>, 
-        queued_people: &Vec<PlayerData>, should_recheck: &mut bool, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> Option<PlayerData> {
+        queued_people: &Vec<PlayerData>, should_recheck: &mut u8, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> Option<PlayerData> {
         
         let mut recheck_player = None;
         if *clear_target {
@@ -32,11 +32,15 @@ impl SignUpsUI {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal(|ui| {
                     if ui.button("Recheck").on_hover_text("Rechecks the sign-ups.").clicked() {
-                        *should_recheck = true;
+                        *should_recheck = SHOULD_RECHECK_ALL;
                     }
                     
                     if ui.button("Summary").on_hover_text("Summarises the sign-ups.").clicked() {
                         self.target_player = None;
+                    }
+                    
+                    if ui.button("Raid Plan recheck").on_hover_text("Rechecks the raid plan to see if there's any new attendance confirmations.").clicked() {
+                        *should_recheck = SHOULD_RECHECK_ATTENDANCE; 
                     }
                 });      
 
@@ -104,7 +108,7 @@ impl SignUpsUI {
                 },
 
                 PriorityChecks::Ilvl => {
-                    if player.ilvl < settings.average_ilvl {
+                    if player.ilvl < settings.average_ilvl{
                         let ilvl_colour = settings.ilvl_colour.unwrap();
                         return egui::Color32::from_rgb(ilvl_colour[0], ilvl_colour[1], ilvl_colour[2]);
                     }
@@ -139,9 +143,16 @@ impl SignUpsUI {
                 },
 
                 PriorityChecks::RaidBuff => {
-                    if player.buff_status.0 > 0 {
+                    if player.buff_status.iter().any(|x| x.1.1 > 0) {
                         let buff_colour: [u8; 4] = settings.buff_colour.unwrap();
                         return egui::Color32::from_rgb(buff_colour[0], buff_colour[1], buff_colour[2]);
+                    }
+                },
+
+                PriorityChecks::MissingTier => {
+                    if player.tier_count != -1 && player.tier_count < 4 {
+                        let tier_colour: [u8; 4] = settings.missing_tier_colour.unwrap();
+                        return egui::Color32::from_rgb(tier_colour[0], tier_colour[1], tier_colour[2]);
                     }
                 }
             }
@@ -152,9 +163,6 @@ impl SignUpsUI {
 
     pub fn draw_summary(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, primary_people: &Vec<PlayerData>, queued_people: &Vec<PlayerData>) {
         let mut bad = 0;
-        let mut aotc = 0;
-        let mut cutting_edge = 0;
-        let mut no_aotc = 0;
 
         let mut bad_primary = Vec::new();
         let mut bad_secondary = Vec::new();
@@ -166,11 +174,6 @@ impl SignUpsUI {
         }
 
         for player in combined.iter() {
-            let missing_buff_count = player.buff_status.0;
-            let missing_buff_possible = player.buff_status.1;
-            let missing_buff_size = player.buff_status.2;
-            let missing_buff_catchup = player.buff_status.3;
-
             let mut set_bad = false;
             let mut bad_message = format!("<@{}> Your signed character {} does not meet the requirements:\n", player.discord_id, player.name.clone());
             if player.skip_reason.is_some() {
@@ -183,19 +186,28 @@ impl SignUpsUI {
                 bad_message += format!("Your ilvl {} does not match the required ilvl for this raid: {}\n", player.ilvl, settings.average_ilvl).as_str();
             }
 
+            let mut raid_name = String::new();
             if player.unkilled_bosses.len() > 0 {
+                
                 set_bad = true;
-                bad_message += format!("You have not killed the following bosses:\n").as_str();
                 for boss in player.unkilled_bosses.iter() {
-                    bad_message += format!("\t{}\n", boss).as_str();
+                    if raid_name != boss.0 {
+                        raid_name = boss.0.clone();
+                        bad_message += format!("You have not killed the following bosses in {}:\n", raid_name).as_str();
+                    }
+                    bad_message += format!("\t{}\n", boss.1).as_str();
                 }
             }
 
+            raid_name = String::new();
             if player.saved_bosses.len() > 0 {
                 set_bad = true;
-                bad_message += format!("You are saved to the following bosses:\n").as_str();
                 for boss in player.saved_bosses.iter() {
-                    bad_message += format!("\t{}\n", boss).as_str();
+                    if raid_name != boss.0 {
+                        raid_name = boss.0.clone();
+                        bad_message += format!("You are saved to the following bosses in {}:\n", raid_name).as_str();
+                    }
+                    bad_message += format!("\t{}\n", boss.1).as_str();
                 }
             }
 
@@ -228,16 +240,18 @@ impl SignUpsUI {
                 bad_message += format!("You are missing **{}** embelishments, you need at least **{}**\n", settings.embelishments - player.num_embelishments, settings.embelishments).as_str();
             }
 
-            if missing_buff_count > 0 {
-                set_bad = true;
-                bad_message += format!("You are missing **{}%** raid buff!\n", missing_buff_count * missing_buff_size).as_str();
-                
-                if missing_buff_possible == false {
-                    bad_message += format!("You can **not** catch up with the raid buff this week.\n").as_str();
-                } else {
-                    bad_message += format!("You can get a **{}%** raid buff this week, **assuming you have not done any renown this week**. ({} catchup)\n", missing_buff_size, missing_buff_catchup).as_str();
-                    if missing_buff_count > 1 {
-                        bad_message += format!("Due to catch up being capped, **you will miss {}%** of the raid buff.\n", (missing_buff_count - 1) * missing_buff_size).as_str();
+            for (_, (raid_name, missing_buff_count, missing_buff_possible, missing_buff_size, missing_buff_catchup)) in player.buff_status.iter() {
+                if *missing_buff_count > 0 {
+                    set_bad = true;
+                    bad_message += format!("You are missing **{}%** raid buff from {raid_name}!\n", missing_buff_count * missing_buff_size).as_str();
+                    
+                    if *missing_buff_possible == false {
+                        bad_message += format!("You can **not** catch up with {raid_name}'s raid buff this week.\n").as_str();
+                    } else {
+                        bad_message += format!("You can get a **{}%** raid buff this week, **assuming you have not done any renown this week**. ({} catchup)\n", missing_buff_size, missing_buff_catchup).as_str();
+                        if *missing_buff_count > 1 {
+                            bad_message += format!("Due to catch up being capped, **you will miss {}%** of the raid buff.\n", (missing_buff_count - 1) * missing_buff_size).as_str();
+                        }
                     }
                 }
             }
@@ -250,35 +264,32 @@ impl SignUpsUI {
                 }
                 bad += 1;
             }
-
-            if player.aotc_status != AOTCStatus::None {
-                match player.aotc_status {
-                    AOTCStatus::Account => {
-                        aotc += 1;
-                    },
-
-                    AOTCStatus::Character => {
-                        aotc += 1;
-                    },
-
-                    AOTCStatus::CuttingEdge(_, _, _) => {
-                        cutting_edge += 1;
-                    },
-
-                    _ => {
-                        no_aotc += 1;
-                    }
-                }
-            } else {
-                no_aotc += 1;
-            }
         }
 
         ui.label(format!("{}/{} haved passed the checks.", (primary_people.len() + queued_people.len()) - bad, primary_people.len() + queued_people.len()));
-        ui.label(format!("{} people do not have AOTC/CE.", no_aotc));
-        ui.label(format!("{} people have AOTC.", aotc));
-        ui.label(format!("{} people have Cutting Edge.", cutting_edge));
         ui.label("");
+
+        let mut unconfirmed = String::default();
+        let mut cancelled: String = String::default();
+        for player in combined.iter() {
+            if player.confirmed == RAID_PLAN_UNCONFIRMED {
+                unconfirmed += format!("<@{}>", player.discord_id).as_str();
+            } else if player.confirmed == RAID_PLAN_CANCELLED {
+                cancelled += format!("{} (<@{}>)\n", player.name, player.discord_id).as_str();
+            }
+        }
+
+        if unconfirmed.len() > 0 {
+            ui.label(egui::RichText::new("The following people have not confirmed their attendance on the raid plan:").color(egui::Color32::YELLOW));
+            ui.label(unconfirmed);
+            ui.label("");
+        }
+
+        if cancelled.len() > 0 {
+            ui.label(egui::RichText::new("The following people have cancelled their attendance on the raid plan:").color(egui::Color32::RED));
+            ui.label(cancelled);
+            ui.label("");
+        }
 
         for message in bad_primary.iter() {
             ui.label(message.clone());
@@ -330,22 +341,32 @@ impl SignUpsUI {
             ui.label("");
         }
 
-        
-
+        let mut raid_name = String::new();
         if player.unkilled_bosses.len() > 0 {
             ui.label(format!("{} has not killed the following bosses:", player.name.clone()));
             for boss in player.unkilled_bosses.iter() {
-                ui.label(format!("\t{}", boss));
+                if raid_name != boss.0 {
+                    raid_name = boss.0.clone();
+                    ui.heading(format!("{}", raid_name));
+                }
+
+                ui.label(format!("\t{}", boss.1));
             }
 
             ui.label("");
             ui.label("");
         }
 
+        let mut raid_name = String::new();
         if player.saved_bosses.len() > 0 {
             ui.label(format!("{} is saved to these bosses this reset:", player.name.clone()));
             for boss in player.saved_bosses.iter() {
-                ui.label(format!("\t{}", boss));
+                if raid_name != boss.0 {
+                    raid_name = boss.0.clone();
+                    ui.heading(format!("{}", raid_name));
+                }
+
+                ui.label(format!("\t{}", boss.1));
             }
 
             ui.label("");
@@ -385,65 +406,88 @@ impl SignUpsUI {
             ui.label("");
         }
         
-        let missing_buff_count = player.buff_status.0;
-        let missing_buff_possible = player.buff_status.1;
-        let missing_buff_size = player.buff_status.2;
-        let missing_buff_catchup = player.buff_status.3;
-        if missing_buff_count > 0 {
+        for (_, (raid_name, missing_buff_count, missing_buff_possible, missing_buff_size, missing_buff_catchup)) in player.buff_status.iter() {
+            if *missing_buff_count > 0 {
+                ui.label(egui::RichText::new(format!("{} is missing {}% raid buff for {raid_name}!", player.name.clone(), missing_buff_count * missing_buff_size)).color(egui::Color32::from_rgb(255, 255, 0)));
 
-            ui.label(egui::RichText::new(format!("{} is missing {}% raid buff!", player.name.clone(), missing_buff_count * missing_buff_size)).color(egui::Color32::from_rgb(255, 255, 0)));
-
-            if missing_buff_possible == false {
-                ui.label(egui::RichText::new(format!("{} can not catch up with the raid buff this week, assuming they have not done any renown this week and they have {} renown catchup possible.", player.name.clone(), missing_buff_catchup)).color(egui::Color32::from_rgb(255, 0, 0)));
-            } else {
-                ui.label(egui::RichText::new(format!("Assuming {} has not done any rep this week (catchup of {} renown). It is possible they can catch up and get a {}% damage/healing buff.", player.name.clone(), missing_buff_catchup, missing_buff_size)).color(egui::Color32::from_rgb(0, 255, 0)));
-                if missing_buff_count > 1 {
-                    ui.label(egui::RichText::new(format!("However, they will not be able to catch up to the other {}% damage/healing buffs they are missing.", (missing_buff_count - 1) * missing_buff_size)).color(egui::Color32::from_rgb(255, 0, 0)));
-                }
-            }
-            ui.label("");
-            ui.label("");
-        }
-
-        if player.aotc_status != AOTCStatus::None {
-            if player.aotc_status == AOTCStatus::Error {
-                ui.label(format!("{} has an error checking for AOTC.", player.name.clone()));
-            } else {
-                let mut string = String::new();
-                match player.aotc_status {
-                    AOTCStatus::Account => {
-                        string = format!("{} has AOTC on their account, but not on this character.", player.name.clone());
-                    },
-
-                    AOTCStatus::Character => {
-                        string = format!("{} has AOTC on this character.", player.name.clone());
-                    },
-
-                    AOTCStatus::CuttingEdge(account, character, heroic_kill) => {
-                        if account == true && character == false {
-                            if heroic_kill == true {
-                                string = format!("{} has Cutting Edge on their account, but on this character, they have only earned AOTC.", player.name.clone());
-                            } else {
-                                string = format!("{} has Cutting Edge on their account, but not on this character. This character has not earned AOTC.", player.name.clone());
-                            }
-                        } else if account == true && character == true {
-                            if heroic_kill == false {
-                                string = format!("{} has Cutting Edge on this character, but has not earned AOTC on this character.", player.name.clone());
-                            } else {
-                                string = format!("{} has Cutting Edge on this character.", player.name.clone());
-                            }
-                            
-                        }
-                    },
-
-                    _ => { 
-                        ui.label("Unknown AOTC status.");
+                if *missing_buff_possible == false {
+                    ui.label(egui::RichText::new(format!("{} can not catch up with {raid_name}'s raid buff this week, assuming they have not done any renown this week and they have {} renown catchup possible.", player.name.clone(), missing_buff_catchup)).color(egui::Color32::from_rgb(255, 0, 0)));
+                } else {
+                    ui.label(egui::RichText::new(format!("Assuming {} has not done any rep this week (catchup of {} renown). It is possible they can catch up and get a {}% damage/healing buff.", player.name.clone(), missing_buff_catchup, missing_buff_size)).color(egui::Color32::from_rgb(0, 255, 0)));
+                    if *missing_buff_count > 1 {
+                        ui.label(egui::RichText::new(format!("However, they will not be able to catch up to the other {}% damage/healing buffs they are missing.", (missing_buff_count - 1) * missing_buff_size)).color(egui::Color32::from_rgb(255, 0, 0)));
                     }
                 }
+                ui.label("");
+                ui.label("");
+            }
+        }
+
+        if player.tier_count != -1{
+            ui.label(format!("{} has {} tier pieces.", player.name.clone(), player.tier_count));
+        }
+
+        for (_, (raid_name, aotc_status)) in player.aotc_status.iter() {
+            let mut string = String::new();
+            match aotc_status {
+                RaidProgressStatus::Account => {
+                    string = format!("{} has {raid_name} AOTC on their account, but not on this character.", player.name.clone());
+                },
+
+                RaidProgressStatus::Character => {
+                    string = format!("{} has {raid_name} AOTC on this character.", player.name.clone());
+                },
+
+                RaidProgressStatus::CuttingEdge(account, character, heroic_kill) => {
+                    if *account == true && *character == false {
+                        if *heroic_kill == true {
+                            string = format!("{} has {raid_name} Cutting Edge on their account, but on this character, they have only earned AOTC.", player.name.clone());
+                        } else {
+                            string = format!("{} has {raid_name} Cutting Edge on their account, but not on this character. This character has not earned AOTC.", player.name.clone());
+                        }
+                    } else if *account == true && *character == true {
+                        if *heroic_kill == false {
+                            string = format!("{} has {raid_name} Cutting Edge on this character, but has not earned AOTC on this character.", player.name.clone());
+                        } else {
+                            string = format!("{} has {raid_name} Cutting Edge on this character.", player.name.clone());
+                        }
+                        
+                    }
+                },
+
+                RaidProgressStatus::EndBossKilled(killed, heroic, mythic) => {
+                    if *killed == false {
+                        string = format!("{} has not killed {raid_name} end boss on this character.", player.name.clone());
+                    } else {
+                        string = if *mythic {
+                            if *heroic {
+                                format!("{} has killed Mythic {raid_name} end boss on this character", player.name.clone())
+                            } else {
+                                format!("{} has killed Mythic {raid_name} end boss on this character, but has not done so on Heroic.", player.name.clone())
+                            }
+                        } else {
+                            format!("{} has killed Heroic {raid_name} end boss on this character.", player.name.clone())
+                        }
+                    }
+                },
+
+                RaidProgressStatus::None => {
+                    string = format!("{} does not have {raid_name} AOTC.", player.name.clone());
+                },
+
+                RaidProgressStatus::Skipped => {
+                    string = format!("");
+                },
+
+                _ => { 
+                    string = format!("Unknown {raid_name} AOTC status.");
+                }
+            }
+
+            if string.len() > 0 {
                 ui.label(string);
             }
-        } else {
-            ui.label("Player does not have AOTC.");
+            
         }
 
         ui.label("");
