@@ -12,7 +12,10 @@ use super::check_player::{PlayerChecker, PlayerData};
 // UI calls are done to send data such as progress
 // WHen search is required we'll lock and await main thread to handle search UI
 
-
+pub static RAID_PLAN_CONFIRMED: u8 = 3;
+pub static RAID_PLAN_UNCONFIRMED: u8 = 2;
+pub static RAID_PLAN_CANCELLED: u8 = 1;
+pub static RAID_PLAN_NONE: u8 = 0;
 
 #[derive(serde::Deserialize, Clone)]
 pub struct Player {
@@ -29,7 +32,20 @@ pub struct Player {
 struct RaidHelper {
     #[serde(alias = "displayTitle")]
     name: String,
-    signUps: Vec<Player>
+    signUps: Vec<Player>,
+    id: String
+}
+
+#[derive(serde::Deserialize)]
+struct RaidHelperRaidPlanSlot {
+    name: String,
+    isConfirmed: String,
+    id: String
+}
+
+#[derive(serde::Deserialize)]
+struct RaidHelperRaidPlan {
+    slots: Vec<RaidHelperRaidPlanSlot>
 }
 
 #[derive(PartialEq)]
@@ -179,7 +195,7 @@ impl RaidSheet {
 
         thread::spawn(move || {
             let client = Client::new();
-            let response = client
+            let mut response = client
                 .get(url.clone())
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
                 .send();
@@ -236,30 +252,99 @@ impl RaidSheet {
                         bad_special_item: Vec::new(),
                         num_embelishments: -1,
                         ilvl: 0,
+                        lvl: 0,
                         saved_bosses: Vec::new(),
                         aotc_status: BTreeMap::new(),
                         buff_status: BTreeMap::new(),
                         tier_count: -1,
                         skip_reason: Some("Could not find player".to_owned()),
                         armory_url: "".to_owned(),
-                        queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" 
+                        queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" ,
+                        confirmed: 0
                     });
                 }
                 
                 count += 1;
             }
 
+            response = client
+                .get(format!("https://raid-helper.dev/api/raidplan/{}", raid_response.id))
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+                .send();
+
+            if !response.is_err() {
+                let raid_plan: Result<RaidHelperRaidPlan, serde_json::Error>  = serde_json::from_str(&response.unwrap().text().unwrap());
+                if raid_plan.is_ok() {
+                    let raid_plan = raid_plan.unwrap();
+                    for slot in raid_plan.slots.iter() {
+                        if let Some(player_data) = vec_player.iter_mut().find(|x| x.discord_id == slot.id) {
+                            if slot.isConfirmed.to_lowercase() == "confirmed" {
+                                player_data.confirmed = RAID_PLAN_CONFIRMED;
+                            } else if slot.isConfirmed.to_lowercase() == "cancelled" {
+                                player_data.confirmed = RAID_PLAN_CANCELLED;
+                            } else {
+                                player_data.confirmed = RAID_PLAN_UNCONFIRMED;
+                            }
+                        }
+                    }
+                }
+            }
+            
             last_raid.players = vec_player.clone();
             last_raid.raid_url = url.clone();
             last_raid.raid_name = raid_response.name.clone();
+            last_raid.raid_id = raid_response.id.clone();
             last_raid.save();
 
             let _ = thread_sender.send(RaidHelperCheckerStatus::CheckResults(LastRaid {
                 raid_url: url,
                 raid_name: raid_response.name,
-                players: vec_player
+                raid_id: raid_response.id,
+                players: vec_player,
             }));
        });
+    }
+
+    pub fn recheck_raid_plan(&mut self, last_raid: &mut LastRaid) {
+        let client = Client::new();
+        let response = client
+            .get(format!("https://raid-helper.dev/api/raidplan/{}", last_raid.raid_id))
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+            .send();
+
+        if !response.is_err() {
+            let raid_plan: Result<RaidHelperRaidPlan, serde_json::Error>  = serde_json::from_str(&response.unwrap().text().unwrap());
+            self.active_players.iter_mut().for_each(|x| x.confirmed = RAID_PLAN_NONE);
+            self.queued_players.iter_mut().for_each(|x| x.confirmed = RAID_PLAN_NONE);
+
+            if raid_plan.is_ok() {
+                let raid_plan = raid_plan.unwrap();
+                for slot in raid_plan.slots.iter() {
+                    if let Some(player_data) = self.active_players.iter_mut().find(|x| x.discord_id == slot.id) {
+                        info!("Setting confirmation status for player {} to {}", player_data.name, slot.isConfirmed);
+                        if slot.isConfirmed.to_lowercase() == "confirmed" {
+                            player_data.confirmed = RAID_PLAN_CONFIRMED;
+                        } else if slot.isConfirmed.to_lowercase() == "cancelled" {
+                            player_data.confirmed = RAID_PLAN_CANCELLED;
+                        } else {
+                            player_data.confirmed = RAID_PLAN_UNCONFIRMED;
+                        }
+                    } else if let Some(player_data) = self.queued_players.iter_mut().find(|x| x.discord_id == slot.id) {
+                        info!("Setting confirmation status for player {} to {}", player_data.name, slot.isConfirmed);
+                        if slot.isConfirmed.to_lowercase() == "confirmed" {
+                            player_data.confirmed = RAID_PLAN_CONFIRMED;
+                        } else if slot.isConfirmed.to_lowercase() == "cancelled" {
+                            player_data.confirmed = RAID_PLAN_CANCELLED;
+                        } else {
+                            player_data.confirmed = RAID_PLAN_UNCONFIRMED;
+                        }
+                    }
+                }
+            }
+
+            last_raid.players = self.active_players.iter().cloned().chain(self.queued_players.iter().cloned()).collect();
+            last_raid.save();
+        }
     }
 
     pub fn draw(&mut self, ctx: &egui::Context, last_raid: &mut config::last_raid::LastRaid, just_checked: &mut bool,

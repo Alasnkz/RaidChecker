@@ -2,7 +2,7 @@ use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui};
 use tracing::info;
 use tracing_subscriber::fmt::format;
 
-use crate::{checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, raid_sheet::Player}, config::{self, settings::PriorityChecks}};
+use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_UNCONFIRMED}}, config::{self, settings::PriorityChecks}};
 
 pub struct SignUpsUI {
     pub target_player: Option<PlayerData>
@@ -18,7 +18,7 @@ impl Default for SignUpsUI {
 
 impl SignUpsUI {
     pub fn draw_signups(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, primary_people: &Vec<PlayerData>, 
-        queued_people: &Vec<PlayerData>, should_recheck: &mut bool, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> Option<PlayerData> {
+        queued_people: &Vec<PlayerData>, should_recheck: &mut u8, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> Option<PlayerData> {
         
         let mut recheck_player = None;
         if *clear_target {
@@ -32,11 +32,15 @@ impl SignUpsUI {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.horizontal(|ui| {
                     if ui.button("Recheck").on_hover_text("Rechecks the sign-ups.").clicked() {
-                        *should_recheck = true;
+                        *should_recheck = SHOULD_RECHECK_ALL;
                     }
                     
                     if ui.button("Summary").on_hover_text("Summarises the sign-ups.").clicked() {
                         self.target_player = None;
+                    }
+                    
+                    if ui.button("Raid Plan recheck").on_hover_text("Rechecks the raid plan to see if there's any new attendance confirmations.").clicked() {
+                        *should_recheck = SHOULD_RECHECK_ATTENDANCE; 
                     }
                 });      
 
@@ -104,7 +108,7 @@ impl SignUpsUI {
                 },
 
                 PriorityChecks::Ilvl => {
-                    if player.ilvl < settings.average_ilvl {
+                    if player.ilvl < settings.average_ilvl{
                         let ilvl_colour = settings.ilvl_colour.unwrap();
                         return egui::Color32::from_rgb(ilvl_colour[0], ilvl_colour[1], ilvl_colour[2]);
                     }
@@ -252,8 +256,6 @@ impl SignUpsUI {
                 }
             }
 
-            
-
             if set_bad == true{
                 if player.queued {
                     bad_secondary.push(bad_message);
@@ -266,6 +268,28 @@ impl SignUpsUI {
 
         ui.label(format!("{}/{} haved passed the checks.", (primary_people.len() + queued_people.len()) - bad, primary_people.len() + queued_people.len()));
         ui.label("");
+
+        let mut unconfirmed = String::default();
+        let mut cancelled: String = String::default();
+        for player in combined.iter() {
+            if player.confirmed == RAID_PLAN_UNCONFIRMED {
+                unconfirmed += format!("<@{}>", player.discord_id).as_str();
+            } else if player.confirmed == RAID_PLAN_CANCELLED {
+                cancelled += format!("{} (<@{}>)\n", player.name, player.discord_id).as_str();
+            }
+        }
+
+        if unconfirmed.len() > 0 {
+            ui.label("The following people have not confirmed their attendance on the raid plan:");
+            ui.label(unconfirmed);
+            ui.label("");
+        }
+
+        if cancelled.len() > 0 {
+            ui.label("The following people have cancelled their attendance on the raid plan:");
+            ui.label(cancelled);
+            ui.label("");
+        }
 
         for message in bad_primary.iter() {
             ui.label(message.clone());

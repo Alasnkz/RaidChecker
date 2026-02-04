@@ -21,6 +21,9 @@ use tracing_subscriber::EnvFilter;
 
 use crate::{checker::{check_player::slug_to_name, raid_sheet::{Player, PlayerOnlyCheckType}}, config::expansion_config::{ExpansionSeasons, Expansion}, expansion_update::ExpansionUpdateChecker};
 
+static SHOULD_RECHECK_ALL: u8 = 1;
+static SHOULD_RECHECK_ATTENDANCE: u8 = 2;
+
 fn init_logging() {
     let log_file = OpenOptions::new()
         .create(true)
@@ -268,7 +271,7 @@ impl eframe::App for RaidHelperCheckerApp {
                 });
             });
 
-            let mut should_recheck = false;
+            let mut should_recheck: u8 = 0;
             let recheck_player = self.signup_ui.draw_signups(ctx, &mut self.settings, &self.raid_sheet.active_players, &self.raid_sheet.queued_players, &mut should_recheck, &mut self.clear_target, &mut self.checked_player);
             if recheck_player.is_some() {
                 let armory_url = recheck_player.as_ref().unwrap().armory_url.clone();
@@ -285,9 +288,16 @@ impl eframe::App for RaidHelperCheckerApp {
                 let _ = self.raid_questions.ask_questions(ctx, &self.expansions, Some(format!("{}-{}", parts[0], realm.unwrap())), Some(PlayerOnlyCheckType::PlayerFromSheet(recheck_player.as_ref().unwrap().discord_id.clone())));
             }
 
-            if should_recheck {
+            if should_recheck == SHOULD_RECHECK_ALL {
                 self.raid_questions.state = QuestionState::AskSaved;
                 let _ = self.raid_questions.ask_questions(ctx,  &self.expansions, Some(self.last_raid.raid_url.clone()), Some(PlayerOnlyCheckType::None));
+            } else if should_recheck == SHOULD_RECHECK_ATTENDANCE {
+                egui::Window::new("Rechecking raid plan")
+                    .show(ctx, |ui| {
+                        ui.label("Rechecking raid plan attendance data...");
+                    });
+                
+                self.raid_sheet.recheck_raid_plan(&mut self.last_raid);
             }
 
             if self.raid_questions.state != checker::raid_questions::QuestionState::None {

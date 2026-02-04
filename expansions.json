@@ -25,6 +25,7 @@
       "identifier": "TWW",
       "reputation_slug": "the-war-within",
       "expansion_start": 1,
+      "max_lvl": 80,
       "gear_embelishment_bonus_id": 8960,
       "slot_data": [
         {
@@ -495,6 +496,7 @@
       "identifier": "MN",
       "expansion_start": 1772492400,
       "reputation_slug": "midnight",
+      "max_lvl": 90,
       "gear_embelishment_bonus_id": 8960,
       "slot_data": [
         {
@@ -825,6 +827,7 @@
       "identifier": "TLT",
       "reputation_slug": "the-last-titan",
       "gear_embelishment_bonus_id": 0,
+      "max_lvl": 100,
       "slot_data": [],
       "seasons": [
         {

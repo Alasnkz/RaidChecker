@@ -83,7 +83,8 @@ pub struct ArmoryCharacter {
     pub average_item_level: i32,
     pub gear: HashMap<String, CharacterGear>,
     #[serde(alias = "lastUpdatedTimestamp")]
-    pub last_updated_timestamp: ArmoryTimestamp
+    pub last_updated_timestamp: ArmoryTimestamp,
+    pub level: u8,
 }
 
 #[derive(serde::Deserialize,Clone,Debug,PartialEq, Eq, Hash)]

@@ -144,6 +144,7 @@ pub struct Expansion {
     pub name: String,
     pub identifier: String, // <-- TWW, MN, TLT
     pub reputation_slug: String,
+    pub max_lvl: u8,
     pub gear_embelishment_bonus_id: i32,
     pub slot_data: Vec<ItemData>,
     pub seasons: Vec<ExpansionSeasons>,
@@ -170,6 +171,7 @@ impl Default for Expansion {
             gear_embelishment_bonus_id: -1,
             slot_data: Vec::new(),
             seasons: Vec::new(),
+            max_lvl: 100,
             latest_season: None,
         }
     }

@@ -72,6 +72,7 @@ pub struct PlayerData {
     pub bad_special_item: Vec<String>,
     pub num_embelishments: i32,
     pub ilvl: i32,
+    pub lvl: u8,
     pub saved_bosses: Vec<(String, String)>,
     pub aotc_status: BTreeMap<i32, (String, RaidProgressStatus)>,
     pub buff_status: BTreeMap<i32, (String, i32, bool, i32, i32)>,
@@ -79,6 +80,7 @@ pub struct PlayerData {
     pub skip_reason: Option<String>,
     pub armory_url: String,
     pub queued: bool,
+    pub confirmed: u8
 }
 
 enum SearchPromptResult {
@@ -133,13 +135,15 @@ impl PlayerChecker {
                             bad_special_item: Vec::new(),
                             num_embelishments: -1,
                             ilvl: 0,
+                            lvl: 0,
                             saved_bosses: Vec::new(),
                             aotc_status: BTreeMap::new(),
                             buff_status: BTreeMap::new(),
                             tier_count: -1,
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
-                            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" 
+                            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
+                            confirmed: 0
                         });
                     },
 
@@ -168,13 +172,15 @@ impl PlayerChecker {
                         bad_special_item: Vec::new(),
                         num_embelishments: -1,
                         ilvl: 0,
+                        lvl: 0,
                         saved_bosses: Vec::new(),
                         aotc_status: BTreeMap::new(),
                         buff_status: BTreeMap::new(),
                         tier_count: -1,
                         skip_reason: Some("Skipped by user.".to_owned()),
                         armory_url: "".to_owned(),
-                        queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench"
+                        queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
+                        confirmed: 0
                     });
                 },
 
@@ -203,13 +209,15 @@ impl PlayerChecker {
                             bad_special_item: Vec::new(),
                             num_embelishments: -1,
                             ilvl: 0,
+                            lvl: 0,
                             saved_bosses: Vec::new(),
                             aotc_status: BTreeMap::new(),
                             buff_status: BTreeMap::new(),
                             tier_count: -1,
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
-                            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench"
+                            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
+                            confirmed: 0
                         });
                     }
                     _ => return None
@@ -247,13 +255,15 @@ impl PlayerChecker {
             bad_special_item: bad_special_item,
             num_embelishments: embelishments,
             ilvl: ilvl,
+            lvl: data.character.level,
             saved_bosses: saved_bosses,
             aotc_status: aotc_report,
             buff_status: buff_status,
             tier_count: tier_count,
             skip_reason: None,
             armory_url: url.clone(),
-            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench"
+            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
+            confirmed: 0
         })
     }
 
