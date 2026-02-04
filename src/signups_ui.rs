@@ -1,4 +1,4 @@
-use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui};
+use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui, epaint::color};
 use tracing::info;
 use tracing_subscriber::fmt::format;
 
@@ -280,13 +280,13 @@ impl SignUpsUI {
         }
 
         if unconfirmed.len() > 0 {
-            ui.label("The following people have not confirmed their attendance on the raid plan:");
+            ui.label(egui::RichText::new("The following people have not confirmed their attendance on the raid plan:").color(egui::Color32::YELLOW));
             ui.label(unconfirmed);
             ui.label("");
         }
 
         if cancelled.len() > 0 {
-            ui.label("The following people have cancelled their attendance on the raid plan:");
+            ui.label(egui::RichText::new("The following people have cancelled their attendance on the raid plan:").color(egui::Color32::RED));
             ui.label(cancelled);
             ui.label("");
         }
