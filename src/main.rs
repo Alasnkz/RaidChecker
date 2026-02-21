@@ -122,7 +122,7 @@ impl Default for RaidHelperCheckerApp {
 
 impl RaidHelperCheckerApp{
     pub fn reload_data(&mut self) {
-        self.expansions = ExpansionsConfig::read_or_create("expansions.json").unwrap();  
+        self.expansions = ExpansionsConfig::read_or_create("expansions.json").unwrap();
         let mut expansion_ts_start = 0;
         let mut expansion_identifier = String::new();
         for expansion in self.expansions.expansions.iter() {
@@ -156,7 +156,7 @@ impl RaidHelperCheckerApp{
                         season_ts_start = season.season_start;
                     } else {
                         info!("{} {} has not started yet, ignoring. Will activate on {}", self.expansions.latest_expansion.as_ref().unwrap().identifier, season.seasonal_identifier, season_start.format("%A, %B %d %Y").to_string());
-                        self.expansions.latest_expansion.as_mut().unwrap().seasons.retain(|x| x.seasonal_identifier != season.seasonal_identifier);                       
+                        self.expansions.latest_expansion.as_mut().unwrap().seasons.retain(|x| x.seasonal_identifier != season.seasonal_identifier);
                     }
                 } else {
                     season_id = season.seasonal_identifier.clone();
@@ -223,13 +223,13 @@ impl eframe::App for RaidHelperCheckerApp {
                                 url: "https://github.com/Alasnkz/RaidChecker/releases/latest".to_string(),
                                 new_tab: true,
                             }));
-    
+
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         } else if ui.button("Cancel").clicked() {
                             self.ask_update = false;
                         }
                     });
-                    
+
                 });
         }
         else if self.ask_json_update{
@@ -250,11 +250,11 @@ impl eframe::App for RaidHelperCheckerApp {
                         }
                     });
                 });
-        } 
+        }
         else {
             TopBottomPanel::top("top_panel").show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    
+
                     if ui.button("Check sign-up URL").clicked() {
                         self.raid_questions.state = checker::raid_questions::QuestionState::AskSaved;
                         self.raid_questions.ignore_url_question = false;
@@ -267,7 +267,7 @@ impl eframe::App for RaidHelperCheckerApp {
                     if ui.button("Settings").clicked() {
                         self.draw_settings = !self.draw_settings;
                     }
-                    
+
                 });
             });
 
@@ -296,7 +296,7 @@ impl eframe::App for RaidHelperCheckerApp {
                     .show(ctx, |ui| {
                         ui.label("Rechecking raid plan attendance data...");
                     });
-                
+
                 self.raid_sheet.recheck_raid_plan(&mut self.last_raid);
             }
 
