@@ -1,7 +1,7 @@
 {
   "rhcu_version": "2.0.0",
-  "modified": 1771742251,
-  "latest_expansion_identifier": "TWW",
+  "modified": 1771846284,
+  "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
       "slot": "weapon",
@@ -837,6 +837,5 @@
         }
       ]
     }
-
   ]
 }
