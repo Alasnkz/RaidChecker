@@ -1,6 +1,6 @@
 {
   "rhcu_version": "2.0.0",
-  "modified": 1772496796,
+  "modified": 1772497578,
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
@@ -520,7 +520,9 @@
 
             8016,
             8017
-          ]
+          ],
+          "has_socket": true,
+          "max_sockets": 1
         },
 
         {
@@ -611,7 +613,9 @@
             8026,
             8027
 
-          ]
+          ],
+          "has_socket": true,
+          "max_sockets": 2
         },
 
         {
@@ -671,7 +675,31 @@
             8040,
             8041
           ]
+        },
+        
+        {
+          "slot": "waist",
+          "sub_slots": [],
+          "enchant_ids": [],
+          "lesser_enchant_ids": [],
+          "has_socket": true,
+          "max_sockets": 1
+        },
+
+        {
+          "slot": "wrist",
+          "sub_slots": [],
+          "has_socket": true,
+          "max_sockets": 1
+        },
+
+        {
+          "slot": "neck",
+          "sub_slots": [],
+          "has_socket": true,
+          "max_sockets": 2
         }
+
       ],
       "seasons": [
         {
