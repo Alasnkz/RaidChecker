@@ -98,7 +98,7 @@ impl RaidCheckQuestions {
         match self.state {
             QuestionState::AskSaved => {
                 if expansion_config.latest_expansion.is_none() || expansion_config.latest_expansion.as_ref().unwrap().latest_season.is_none() {
-                    egui::Window::new("There are no raids available to check.")
+                    egui::Window::new("Raid Checker - Save Checker")
                         .collapsible(false)
                         .resizable(false)
                         .show(ctx, |ui| {
