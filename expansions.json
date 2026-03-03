@@ -1,6 +1,6 @@
 {
   "rhcu_version": "2.0.0",
-  "modified": 1771846284,
+  "modified": 1772496796,
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
@@ -698,7 +698,7 @@
                   "id": 3
                 }
               ],
-              "id": 0,
+              "id": 1,
               "boss_names": [
                 "Imperator Averzian",
                 "Vorasius",
@@ -733,7 +733,7 @@
                   "id": 3
                 }
               ],
-              "id": 1,
+              "id": 0,
               "boss_names": [
                 "Chimaerus the Undreamt God"
               ],
