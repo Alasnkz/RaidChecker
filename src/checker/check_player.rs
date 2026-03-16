@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, os::unix::thread, sync::mpsc::{Receiver, Sender}};
+use std::{collections::BTreeMap, sync::mpsc::{Receiver, Sender}};
 
 use regex::Regex;
 use reqwest::blocking::Client;
