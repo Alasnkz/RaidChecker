@@ -193,7 +193,6 @@ impl RaidHelperCheckerApp{
                 }
             }
         }
-
         if self.expansions.latest_expansion_identifier != expansion_identifier {
             info!("Resetting saved raids data, expansion has changed.");
             self.settings.required_raids.clear();
