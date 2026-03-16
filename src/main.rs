@@ -269,7 +269,7 @@ impl eframe::App for RaidHelperCheckerApp {
             });
 
             let mut should_recheck: u8 = 0;
-            let recheck_player = self.signup_ui.draw_signups(ctx, &mut self.settings, &self.raid_sheet.active_players, &self.raid_sheet.queued_players, &mut should_recheck, &mut self.clear_target, &mut self.checked_player);
+            let recheck_player = self.signup_ui.draw_signups(ctx, &mut self.settings, &self.expansions, &self.raid_sheet.active_players, &self.raid_sheet.queued_players, &mut should_recheck, &mut self.clear_target, &mut self.checked_player);
             if recheck_player.is_some() {
                 let armory_url = recheck_player.as_ref().unwrap().armory_url.clone();
                 let parts: Vec<_> = armory_url.trim_end_matches('/').rsplitn(3, '/').collect();

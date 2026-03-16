@@ -2,7 +2,7 @@ use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui, epaint::colo
 use tracing::info;
 use tracing_subscriber::fmt::format;
 
-use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_UNCONFIRMED}}, config::{self, settings::PriorityChecks}};
+use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_UNCONFIRMED}}, config::{self, expansion_config::ExpansionsConfig, settings::PriorityChecks}};
 
 pub struct SignUpsUI {
     pub target_player: Option<PlayerData>
@@ -17,7 +17,7 @@ impl Default for SignUpsUI {
 }
 
 impl SignUpsUI {
-    pub fn draw_signups(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, primary_people: &Vec<PlayerData>, 
+    pub fn draw_signups(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, expansions: &ExpansionsConfig, primary_people: &Vec<PlayerData>, 
         queued_people: &Vec<PlayerData>, should_recheck: &mut u8, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> Option<PlayerData> {
         
         let mut recheck_player = None;
@@ -67,7 +67,7 @@ impl SignUpsUI {
                 if self.target_player.is_none() {
                     self.draw_summary(ui, settings, primary_people, queued_people);
                 } else {
-                    if self.draw_player_info(ui, settings, None) == true {
+                    if self.draw_player_info(ui, settings, expansions, None) == true {
                         recheck_player = Some(self.target_player.clone().unwrap());
                     }
                 }
@@ -80,7 +80,7 @@ impl SignUpsUI {
                 .resizable(true)
                 .show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        self.draw_player_info(ui, settings, checked_player.clone());
+                        self.draw_player_info(ui, settings, expansions, checked_player.clone());
                     });
                     if ui.button("Close").clicked() {
                         *checked_player = None;
@@ -305,7 +305,7 @@ impl SignUpsUI {
         }
     }
 
-    pub fn draw_player_info(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, checked_player: Option<PlayerData>) -> bool {
+    pub fn draw_player_info(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, expansions: &ExpansionsConfig, checked_player: Option<PlayerData>) -> bool {
 
         let mut should_recheck = false;
         let player = if checked_player.is_some() {
@@ -332,7 +332,15 @@ impl SignUpsUI {
             }
         });
 
-        
+        let max_level = if expansions.latest_expansion.is_some() {
+            expansions.latest_expansion.as_ref().unwrap().max_lvl
+        } else {
+            90
+        };
+
+        if player.lvl < max_level {
+            ui.label(egui::RichText::new(format!("{} is level {}! The current max is {}", player.name, player.lvl, max_level)).color(egui::Color32::RED));
+        }
 
         if player.ilvl < settings.average_ilvl {
             ui.label(format!("{} has an ilvl of {} which is below the average ilvl of {}", player.name.clone(), player.ilvl, settings.average_ilvl));
