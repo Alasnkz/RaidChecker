@@ -193,6 +193,7 @@ impl SettingsUi {
                                     if has_greater_socket_item {
                                         ui.checkbox(&mut item.0.require_greater_socket, "Require greater socket item").on_hover_text("Checks to see if the item has a \"greater\" gem/fibre socketed into it, notable for TWW S3 Reshii Wraps fibers.");
                                     }
+                                    ui.checkbox(&mut item.0.warn_if_socket_unfilled, "Warn if a socket is unfilled").on_hover_text("Warn if a socket is unfilled, no matter if they have met the socket requirement.");
                                 }
                                 
                             });

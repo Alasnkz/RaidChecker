@@ -1,6 +1,6 @@
 {
   "rhcu_version": "2.0.0",
-  "modified": 1772497578,
+  "modified": 1773677066,
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
@@ -704,7 +704,7 @@
       "seasons": [
         {
           "seasonal_identifier": "Season 1",
-          "season_start": 1773633600,
+          "season_start": 1773806400,
           "raids": [
             {
               "identifier": "The Voidspire",

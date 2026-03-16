@@ -459,7 +459,7 @@ impl ArmoryChecker {
         }
         if gear.sockets.is_some() {    
             let count = gear.sockets.iter().flatten().filter(|s| s._item.is_some()).count() as i32;
-            if count < sockets {
+            if count < sockets && options.0.warn_if_socket_unfilled == true {
                 if bad_str != "" {
                     bad_str += "\n\t";
                 }

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::mpsc::{Receiver, Sender}};
+use std::{collections::BTreeMap, os::unix::thread, sync::mpsc::{Receiver, Sender}};
 
 use regex::Regex;
 use reqwest::blocking::Client;
@@ -105,6 +105,8 @@ impl PlayerChecker {
             armory_data = ArmoryChecker::check_armory(&url.clone());
         }
 
+        let max_level = expansions.latest_expansion.as_ref().unwrap().max_lvl;
+
         // Check to see if the character's character is a real one.
         let processed_name = process_name(&player.name);
         let is_some = processed_name.is_some();
@@ -117,7 +119,7 @@ impl PlayerChecker {
             } 
 
             if armory_data.is_none() {
-                let search_response = Self::search_prompt(&name.1.clone(), Some(player), thread_sender, thread_reciever);
+                let search_response = Self::search_prompt(&name.1.clone(), Some(player), thread_sender, thread_reciever, Some(max_level));
                 match search_response {
                     SearchPromptResult::Url(search_url) => {
                         url = search_url;
@@ -154,7 +156,7 @@ impl PlayerChecker {
 
         if armory_data.is_none() && is_some {
             // Add a thing to say this was auto searched if it auto selects?
-            let search_response = Self::search_prompt(&player.name, Some(player), thread_sender, thread_reciever);
+            let search_response = Self::search_prompt(&player.name, Some(player), thread_sender, thread_reciever, Some(max_level));
             match search_response {
                 SearchPromptResult::Url(search_url) => {
                     url = search_url;
@@ -189,9 +191,9 @@ impl PlayerChecker {
         }
 
         if armory_data.is_none() {
-            let name = Self::prompt_for_name(Some(player), thread_sender, thread_reciever);
+            let name = Self::prompt_for_name(Some(player), thread_sender, thread_reciever, false);
             if name.is_some() {
-                let search_response = Self::search_prompt(&name.clone().unwrap(), Some(player), thread_sender, thread_reciever);
+                let search_response = Self::search_prompt(&name.clone().unwrap(), Some(player), thread_sender, thread_reciever, Some(max_level));
                 match search_response {
                     SearchPromptResult::Url(search_url) => {
                         url = search_url;
@@ -267,9 +269,15 @@ impl PlayerChecker {
         })
     }
 
-    fn prompt_for_name(player: Option<&Player>, thread_sender: &Sender<RaidHelperCheckerStatus>, thread_reciever: &Receiver<RaidHelperUIStatus>) -> Option<String> {
+    fn prompt_for_name(player: Option<&Player>, thread_sender: &Sender<RaidHelperCheckerStatus>, thread_reciever: &Receiver<RaidHelperUIStatus>, low_level: bool) -> Option<String> {
         if player.is_some() {
-            let _ = thread_sender.send(RaidHelperCheckerStatus::QuestionStringSkip(format!("Could not find {} (signed as spec {}) - please input a name for this character...", player.unwrap().name, player.unwrap().specName.clone().unwrap_or("Unknown".to_string())))).unwrap();
+            let string = if low_level == true {
+                format!("Found a character for {} (signed as spec {}) but they are a low level character!\n\nPlease input a name for this character...", player.unwrap().name, player.unwrap().specName.clone().unwrap_or("Unknown".to_string()))
+            } else {
+                format!("Could not find {} (signed as spec {}) - please input a name for this character...", player.unwrap().name, player.unwrap().specName.clone().unwrap_or("Unknown".to_string()))
+            };
+
+            let _ = thread_sender.send(RaidHelperCheckerStatus::QuestionStringSkip(string));
         } else {
             let _ = thread_sender.send(RaidHelperCheckerStatus::QuestionStringSkip(format!("Please input a name for this character..."))).unwrap();
         }
@@ -282,9 +290,11 @@ impl PlayerChecker {
         }
     }
 
-    fn search_prompt(name: &String, player: Option<&Player>, thread_sender: &Sender<RaidHelperCheckerStatus>, thread_reciever: &Receiver<RaidHelperUIStatus>) -> SearchPromptResult {
+    fn search_prompt(name: &String, player: Option<&Player>, thread_sender: &Sender<RaidHelperCheckerStatus>, thread_reciever: &Receiver<RaidHelperUIStatus>, max_level: Option<u8>) -> SearchPromptResult {
         let url = format!("https://worldofwarcraft.blizzard.com/en-gb/search?q={}", name);
         let client = Client::new();
+        let mut low_level = false;
+
         let response = client
             .get(url)
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
@@ -299,7 +309,7 @@ impl PlayerChecker {
             return SearchPromptResult::Error("Could not fetch the search results.".to_string());
         }
 
-        let mut chars = Vec::new();
+        let mut chars: Vec<(String, String)> = Vec::new();
         let document = Html::parse_document(&text.unwrap());
         let link_selector = Selector::parse("a.Link.Character").unwrap();
  
@@ -310,20 +320,27 @@ impl PlayerChecker {
             let realm_selector = Selector::parse(".Character-realm").unwrap();
 
             let name = element.select(&name_selector).next().map(|n| n.text().collect::<Vec<_>>().join(" ")).unwrap_or_default();
-            let level = element.select(&level_selector).next().map(|l| l.text().collect::<Vec<_>>().join(" ")).unwrap_or_default();
+            let mut level = element.select(&level_selector).next().map(|l| l.text().collect::<Vec<_>>().join(" ")).unwrap_or_default();
+            let class = level.split_off(level.find(" ").expect("Couldn't get class."));
             let realm = element.select(&realm_selector).next().map(|r| r.text().collect::<Vec<_>>().join(" ")).unwrap_or_default();
 
             let fixed_href = ("https://worldofwarcraft.blizzard.com/en-gb".to_owned() + href).trim_end_matches('/').to_string();
-            chars.push((format!("{} {}, level {}", name, realm, level), fixed_href.to_string()));
+            if max_level.is_some() && level.parse::<u8>().is_ok() {
+                if max_level.unwrap() > level.parse::<u8>().unwrap() {
+                    low_level = true;
+                    continue;
+                }
+            }
+            chars.push((format!("{} {}{}, level {}", name, realm, class, level), fixed_href.to_string()));
         }
 
         if chars.len() == 1 {
             // TODO: Automatic selection alert!
             return SearchPromptResult::Url(chars.last().unwrap().1.clone());
         } else if chars.is_empty() {
-            let name = Self::prompt_for_name(player, thread_sender, thread_reciever);
+            let name = Self::prompt_for_name(player, thread_sender, thread_reciever, low_level);
             if name.is_some() {
-                return Self::search_prompt(&name.clone().unwrap(), player, thread_sender, thread_reciever);
+                return Self::search_prompt(&name.clone().unwrap(), player, thread_sender, thread_reciever, max_level);
             }
             return SearchPromptResult::Skipped;
         }
@@ -339,9 +356,9 @@ impl PlayerChecker {
             },
 
             RaidHelperUIStatus::SearchResponseNewName() => {
-                let name = Self::prompt_for_name(None, thread_sender, thread_reciever);
+                let name = Self::prompt_for_name(None, thread_sender, thread_reciever, false);
                 if name.is_some() {
-                    return Self::search_prompt(&name.clone().unwrap(), player, thread_sender, thread_reciever);
+                    return Self::search_prompt(&name.clone().unwrap(), player, thread_sender, thread_reciever, max_level);
                 }
                 None
             },

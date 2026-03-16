@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Datelike, Duration, TimeZone, Utc, Weekday};
+use tracing::debug;
 
 use crate::{checker::armory_checker::ArmoryCharacterResponse, config::settings::RequiredRaid};
 
@@ -26,15 +27,13 @@ impl SavedChecker {
         raid_saved_check: &BTreeMap<i32, RequiredRaid>,
     ) -> Vec<(String, String)> {
         let reset_timestamp = Self::get_wednesday_reset_timestamp() as u64;
-    
-        raid_saved_check
+         raid_saved_check
             .iter()
             .filter_map(|(&raid_id, required_raid)| {
                 armory.summary.raids.get(raid_id as usize).map(|armory_raid| (armory_raid, required_raid))
             })
             .flat_map(|(armory_raid, required_raid)| {
                 let mut killed_bosses_in_raid: BTreeMap<usize, (String, Vec<(String, u64)>)> = BTreeMap::new();
-    
                 for (&difficulty_id, required_difficulty) in &required_raid.difficulty {
                     if required_difficulty.boss_ids.is_empty() {
                         continue;

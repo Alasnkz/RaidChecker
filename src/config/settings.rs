@@ -7,12 +7,18 @@ pub struct SlotSetting {
     pub require_slot: bool,
     pub require_latest: bool,
     pub require_sockets: i32,
+    #[serde(default = "default_true")]
+    pub warn_if_socket_unfilled: bool,
     #[serde(default = "default_require_greater")]
     pub require_special_item: bool,
     #[serde(default = "default_require_greater")]
     pub require_greater: bool,
     #[serde(default = "default_require_greater")]
     pub require_greater_socket: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_require_greater() -> bool {
@@ -52,6 +58,7 @@ impl Default for SlotSetting {
             require_slot: false,
             require_latest: false,
             require_sockets: 0,
+            warn_if_socket_unfilled: true,
             require_special_item: false,
             require_greater: false,
             require_greater_socket: false,

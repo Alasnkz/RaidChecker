@@ -14,7 +14,7 @@ pub mod signups_ui;
 pub mod expansion_update;
 pub mod settings_ui;
 use config::last_raid::LastRaid;
-use tracing::{error, info};
+use tracing::{error, info, level_filters::LevelFilter};
 use tracing_subscriber::layer::Layer;
 use tracing_subscriber::{fmt, layer::SubscriberExt, Registry};
 use tracing_subscriber::EnvFilter;
@@ -34,8 +34,8 @@ fn init_logging() {
 
     let file_writer = move || BufWriter::new(log_file.try_clone().expect("Failed to clone log file"));
 
-    let file_filter = EnvFilter::try_new("info").unwrap();
-    let console_filter: EnvFilter = EnvFilter::try_new("info").unwrap();
+    let file_filter = EnvFilter::try_new("info").unwrap().add_directive(LevelFilter::DEBUG.into());
+    let console_filter: EnvFilter = EnvFilter::try_new("info").unwrap().add_directive(LevelFilter::DEBUG.into());
 
     let file_layer = fmt::layer()
         .with_writer(file_writer)
