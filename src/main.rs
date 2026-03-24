@@ -282,12 +282,12 @@ impl eframe::App for RaidHelperCheckerApp {
                 self.raid_questions.state = QuestionState::AskSaved;
                 self.raid_questions.ignore_url_question = true;
                 self.raid_questions.player_only = PlayerOnlyCheckType::PlayerFromSheet(recheck_player.as_ref().unwrap().discord_id.clone());
-                let _ = self.raid_questions.ask_questions(ctx, &self.expansions, Some(format!("{}-{}", parts[0], realm.unwrap())), Some(PlayerOnlyCheckType::PlayerFromSheet(recheck_player.as_ref().unwrap().discord_id.clone())));
+                let _ = self.raid_questions.ask_questions(ctx, &self.expansions, Some(format!("{}-{}", parts[0], realm.unwrap())), Some(PlayerOnlyCheckType::PlayerFromSheet(recheck_player.as_ref().unwrap().discord_id.clone())), &mut self.settings);
             }
 
             if should_recheck == SHOULD_RECHECK_ALL {
                 self.raid_questions.state = QuestionState::AskSaved;
-                let _ = self.raid_questions.ask_questions(ctx,  &self.expansions, Some(self.last_raid.raid_url.clone()), Some(PlayerOnlyCheckType::None));
+                let _ = self.raid_questions.ask_questions(ctx,  &self.expansions, Some(self.last_raid.raid_url.clone()), Some(PlayerOnlyCheckType::None), &mut self.settings);
             } else if should_recheck == SHOULD_RECHECK_ATTENDANCE {
                 egui::Window::new("Rechecking raid plan")
                     .show(ctx, |ui| {
@@ -298,7 +298,7 @@ impl eframe::App for RaidHelperCheckerApp {
             }
 
             if self.raid_questions.state != checker::raid_questions::QuestionState::None {
-                let ret = self.raid_questions.ask_questions(ctx, &self.expansions, None, None);
+                let ret = self.raid_questions.ask_questions(ctx, &self.expansions, None, None, &mut self.settings);
                 if ret.is_some() {
                     let (url, boss_kills, player_only) = ret.unwrap();
                     self.raid_sheet.init(url, player_only.clone(), self.settings.clone(), self.expansions.clone(), self.realms.clone(), boss_kills, self.last_raid.clone());
@@ -322,7 +322,7 @@ impl eframe::App for RaidHelperCheckerApp {
                 self.raid_questions.state = QuestionState::AskSaved;
                 self.raid_questions.ignore_url_question = false;
                 self.raid_questions.player_only = PlayerOnlyCheckType::Player;
-                let _ = self.raid_questions.ask_questions(ctx, &self.expansions, None, Some(PlayerOnlyCheckType::Player));
+                let _ = self.raid_questions.ask_questions(ctx, &self.expansions, None, Some(PlayerOnlyCheckType::Player), &mut self.settings);
                 self.draw_player_check = false;
             }
         }

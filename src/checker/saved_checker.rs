@@ -1,14 +1,14 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, usize};
 
 use chrono::{DateTime, Datelike, Duration, TimeZone, Utc, Weekday};
 use tracing::debug;
 
-use crate::{checker::armory_checker::ArmoryCharacterResponse, config::settings::RequiredRaid};
+use crate::{checker::armory_checker::{ArmoryCharacterResponse, PlayerRaidBossData, PlayerRaidBossDifficultyData, PlayerRaidData}, config::settings::RequiredRaid};
 
 pub struct SavedChecker {}
 
 impl SavedChecker {
-    fn get_wednesday_reset_timestamp() -> i64 {
+    pub fn get_wednesday_reset_timestamp() -> i64 {
         let now = Utc::now();
         let weekday = now.weekday();
     
@@ -24,10 +24,25 @@ impl SavedChecker {
     
     pub fn check_bosses(
         armory: &ArmoryCharacterResponse,
-        raid_saved_check: &BTreeMap<i32, RequiredRaid>,
-    ) -> Vec<(String, String)> {
-        let reset_timestamp = Self::get_wednesday_reset_timestamp() as u64;
-         raid_saved_check
+        raid_data: &mut BTreeMap<usize, PlayerRaidData>,
+    ) {
+        for raid in &armory.summary.raids {
+            for difficulty in &raid.difficulties {
+                for boss in &difficulty.bosses {
+                    let raid_id = armory.summary.raids.iter().position(|x| x.name == raid.name).unwrap();
+                    let difficulty_id = armory.summary.raids.get(raid_id).unwrap().difficulties.iter().position(|x| x.name == difficulty.name).unwrap();
+                    let boss_id = difficulty.bosses.iter().position(|x| x.name == boss.name).unwrap();
+
+                    let boss_data = raid_data.entry(raid_id).or_insert(PlayerRaidData { raid_name: raid.name.clone(), bosses: BTreeMap::new() })
+                        .bosses.entry(boss_id).or_insert(PlayerRaidBossData { boss_id, boss_name: boss.name.clone(), difficulties: BTreeMap::new() })
+                        .difficulties.entry(difficulty_id).or_insert(PlayerRaidBossDifficultyData { difficulty_id, difficulty_name: difficulty.name.clone(), boss_kill_time: None, killed_before: false });
+
+                    boss_data.boss_kill_time = boss.last_timestamp;
+                }
+            }
+        }
+
+        /*raid_saved_check
             .iter()
             .filter_map(|(&raid_id, required_raid)| {
                 armory.summary.raids.get(raid_id as usize).map(|armory_raid| (armory_raid, required_raid))
@@ -72,6 +87,6 @@ impl SavedChecker {
                     )
                 })
             })
-        .collect()
+        .collect()*/
     }
 }

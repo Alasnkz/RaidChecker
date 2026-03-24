@@ -153,6 +153,8 @@ pub struct RequiredRaid {
 pub struct Settings {
     pub average_ilvl: i32,
     pub embelishments: i32,
+    #[serde(default = "default_saved")]
+    pub saved_raids: BTreeMap<i32, RequiredRaid>,
     pub required_raids: BTreeMap<i32, RequiredRaid>,
     pub slots: Slots,
     pub skip_colour: Option<[u8; 4]>,
@@ -166,6 +168,12 @@ pub struct Settings {
     pub buff_colour: Option<[u8; 4]>,
     #[serde(default = "default_check_priority")]
     pub check_priority: Vec<PriorityChecks>,
+    #[serde(default = "default_require_greater")]
+    pub save_moved_message: bool,
+}
+
+fn default_saved() -> BTreeMap<i32, RequiredRaid> {
+    BTreeMap::new()
 }
 
 fn default_check_priority() -> Vec<PriorityChecks> {
@@ -186,6 +194,7 @@ impl Default for Settings {
         Self {
             average_ilvl: 0,
             embelishments: 0,
+            saved_raids: BTreeMap::new(),
             required_raids: BTreeMap::new(),
             slots: Slots::default(),
             skip_colour: Some([0xFF, 0xFF, 0x0, 0xFF]),
@@ -197,6 +206,7 @@ impl Default for Settings {
             bad_special_item_colour: Some([0x8B, 0x0, 0x0, 0xFF]),
             missing_tier_colour: Some([218, 0, 255, 255]),
             buff_colour: Some([0xFF, 0xA5, 0x0, 0xFF]),
+            save_moved_message: false,
             check_priority: vec![
                 PriorityChecks::SavedKills,
                 PriorityChecks::Ilvl,

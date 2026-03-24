@@ -1,6 +1,6 @@
 {
   "rhcu_version": "2.0.0",
-  "modified": 1773677066,
+  "modified": 1774359643,
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
@@ -763,7 +763,7 @@
               ],
               "id": 0,
               "boss_names": [
-                "Chimaerus the Undreamt God"
+                "Chimaerus, the Undreamt God"
               ],
 
               "achievement": {

@@ -68,6 +68,7 @@ pub struct RaidSheet {
    pub(crate) question_string: String,
    pub(crate) wait_counter: usize,
    pub(crate) frame_counter: usize,
+   pub(crate) dirty: bool,
 
    // Player stuff
    pub(crate) active_players: Vec<PlayerData>,
@@ -99,6 +100,7 @@ impl Default for RaidSheet {
             question_string: String::default(),
             wait_counter: 0,
             frame_counter: 0,
+            dirty: false,
 
             active_players: Vec::new(),
             queued_players: Vec::new(),
@@ -160,6 +162,7 @@ impl RaidSheet {
             } else {
                 self.queued_players.push(player.clone());
             }
+            self.dirty = true;
         }
     }
 
@@ -246,14 +249,13 @@ impl RaidSheet {
                         discord_id: player.userId.clone(),
                         name: player.name.clone(),
                         status: player.status.clone(),
-                        unkilled_bosses: Vec::new(),
+                        raid_data: BTreeMap::new(),
                         bad_gear: Vec::new(),
                         bad_socket: Vec::new(),
                         bad_special_item: Vec::new(),
                         num_embelishments: -1,
                         ilvl: 0,
                         lvl: 0,
-                        saved_bosses: Vec::new(),
                         aotc_status: BTreeMap::new(),
                         buff_status: BTreeMap::new(),
                         tier_count: -1,
@@ -383,6 +385,7 @@ impl RaidSheet {
                 RaidHelperCheckerStatus::QuestionStringSkip(msg) => {
                     self.state = RaidSheetState::QuestionStringSkip(msg);
                     self.question_string = String::default();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
                 },
 
                 RaidHelperCheckerStatus::CheckResults(results) => {
@@ -397,6 +400,7 @@ impl RaidSheet {
                             self.queued_players.push(player.clone());
                         }
                     }
+                    self.dirty = true;
                     *just_checked = true;
                     self.state = RaidSheetState::None;
                 }
@@ -434,6 +438,7 @@ impl RaidSheet {
                         }
                     }
                     *just_checked = true;
+                    self.dirty = true;
                     last_raid.save();
                     self.state = RaidSheetState::None;
                 }
@@ -471,6 +476,7 @@ impl RaidSheet {
             
             RaidSheetState::Search(msg) => {
                 let (name, spec, results) = msg;
+                ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
                 egui::Window::new("Raid Helper - Searching Armory")
                     .collapsible(false)
                     .resizable(false)
@@ -545,6 +551,7 @@ impl RaidSheet {
             },
             
             RaidSheetState::QuestionStringSkip(_msg) => {
+                ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
                 egui::Window::new("Raid Helper - Question")
                     .collapsible(false)
                     .resizable(false)

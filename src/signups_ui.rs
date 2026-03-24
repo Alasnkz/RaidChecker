@@ -1,8 +1,11 @@
+use std::collections::BTreeMap;
+
+use chrono::{DateTime, TimeZone, Utc};
 use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui, epaint::color};
 use tracing::info;
 use tracing_subscriber::fmt::format;
 
-use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_UNCONFIRMED}}, config::{self, expansion_config::ExpansionsConfig, settings::PriorityChecks}};
+use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_UNCONFIRMED}, saved_checker::SavedChecker}, config::{self, expansion_config::ExpansionsConfig, settings::PriorityChecks}};
 
 pub struct SignUpsUI {
     pub target_player: Option<PlayerData>
@@ -101,10 +104,25 @@ impl SignUpsUI {
         for prio in settings.check_priority.iter() {
             match prio {
                 PriorityChecks::SavedKills => {
-                    if player.saved_bosses.len() > 0 {
-                        let saved_colour = settings.saved_colour.unwrap();
-                        return egui::Color32::from_rgb(saved_colour[0], saved_colour[1], saved_colour[2]);
-                    }
+                    for raid in &player.raid_data {
+                        if settings.saved_raids.get(&(*raid.0 as i32)).is_some() {
+                            for boss in &raid.1.bosses {
+                                for difficulty in &boss.1.difficulties {
+                                    let saved_difficulty = settings.saved_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
+                                    if saved_difficulty.is_some() {
+                                        if saved_difficulty.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
+                                            if difficulty.1.boss_kill_time.is_some() {
+                                                if difficulty.1.boss_kill_time.unwrap() > SavedChecker::get_wednesday_reset_timestamp() as u64 {
+                                                    let saved_colour = settings.saved_colour.unwrap();
+                                                    return egui::Color32::from_rgb(saved_colour[0], saved_colour[1], saved_colour[2]);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }                    
                 },
 
                 PriorityChecks::Ilvl => {
@@ -115,9 +133,20 @@ impl SignUpsUI {
                 },
 
                 PriorityChecks::Unkilled => {
-                    if player.unkilled_bosses.len() > 0 {
-                        let unkilled_colour = settings.unkilled_colour.unwrap();
-                        return egui::Color32::from_rgb(unkilled_colour[0], unkilled_colour[1], unkilled_colour[2]);
+                    for raid in &player.raid_data {
+                        if settings.required_raids.get(&(*raid.0 as i32)).is_some() {
+                            for boss in &raid.1.bosses {
+                                for difficulty in &boss.1.difficulties {
+                                    let required_difficulties = settings.required_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
+                                    if required_difficulties.is_some() {
+                                        if required_difficulties.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
+                                            let unkilled_colour = settings.unkilled_colour.unwrap();
+                                            return egui::Color32::from_rgb(unkilled_colour[0], unkilled_colour[1], unkilled_colour[2]);
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
 
@@ -186,28 +215,74 @@ impl SignUpsUI {
                 bad_message += format!("Your ilvl {} does not match the required ilvl for this raid: {}\n", player.ilvl, settings.average_ilvl).as_str();
             }
 
+            let mut boss_killed: BTreeMap<String, (String, Vec<String>)> = BTreeMap::new();
+            for raid in &player.raid_data {
+                if settings.required_raids.get(&(*raid.0 as i32)).is_some() {
+                    for boss in &raid.1.bosses {
+                        for difficulty in &boss.1.difficulties {
+                            let required_difficulties = settings.required_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
+                            if required_difficulties.is_some() {
+                                if required_difficulties.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
+                                    if difficulty.1.killed_before == false {
+                                        let status = boss_killed.entry(boss.1.boss_name.clone()).or_default();
+                                        status.0 = raid.1.raid_name.clone();
+                                        status.1.push(difficulty.1.difficulty_name.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             let mut raid_name = String::new();
-            if player.unkilled_bosses.len() > 0 {
-                
+            if boss_killed.len() > 0 {
                 set_bad = true;
-                for boss in player.unkilled_bosses.iter() {
-                    if raid_name != boss.0 {
-                        raid_name = boss.0.clone();
+                for boss in boss_killed.iter() {
+                    if raid_name != boss.1.0 {
+                        raid_name = boss.1.0.clone();
                         bad_message += format!("You have not killed the following bosses in {}:\n", raid_name).as_str();
                     }
-                    bad_message += format!("\t{}\n", boss.1).as_str();
+
+                    let difficulties = boss.1.1.join(", ");
+                    bad_message += format!("\t{} ({})\n", boss.0, difficulties).as_str();
+                }
+            }
+
+            let mut saved_bosses: BTreeMap<String, (String, Vec<String>, u64)> = BTreeMap::new();
+            for raid in &player.raid_data {
+                if settings.saved_raids.get(&(*raid.0 as i32)).is_some() {
+                    for boss in &raid.1.bosses {
+                        for difficulty in &boss.1.difficulties {
+                            let saved_difficulty = settings.saved_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
+                            if saved_difficulty.is_some() {
+                                if saved_difficulty.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
+                                    if difficulty.1.boss_kill_time.is_some() {
+                                        if difficulty.1.boss_kill_time.unwrap() > SavedChecker::get_wednesday_reset_timestamp() as u64 {
+                                            let status = saved_bosses.entry(boss.1.boss_name.clone()).or_default();
+                                            status.0 = raid.1.raid_name.clone();
+                                            status.1.push(difficulty.1.difficulty_name.clone());
+                                            status.2 = difficulty.1.boss_kill_time.unwrap() / 1000;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             raid_name = String::new();
-            if player.saved_bosses.len() > 0 {
-                set_bad = true;
-                for boss in player.saved_bosses.iter() {
-                    if raid_name != boss.0 {
-                        raid_name = boss.0.clone();
+            if saved_bosses.len() > 0 {
+                for boss in saved_bosses.iter() {
+                    if raid_name != boss.1.0 {
+                        raid_name = boss.1.0.clone();
                         bad_message += format!("You are saved to the following bosses in {}:\n", raid_name).as_str();
                     }
-                    bad_message += format!("\t{}\n", boss.1).as_str();
+    
+                    let difficulties = boss.1.1.join(", ");
+                    let kill_time: DateTime<Utc> = Utc.timestamp_opt(boss.1.2 as i64, 0).unwrap();
+                    bad_message += format!("\t{} ({}) killed @ {}\n", boss.0, difficulties, kill_time.format("%A %H:%M")).as_str();
                 }
             }
 
@@ -327,6 +402,8 @@ impl SignUpsUI {
             ui.add(Hyperlink::from_label_and_url("Armory", format!("{}", player.armory_url)));
             let converted_url = player.armory_url.clone().replace("worldofwarcraft.blizzard.com/en-gb", "www.warcraftlogs.com");
             ui.add(Hyperlink::from_label_and_url("Logs", format!("{}", converted_url)));
+            let converted_url = player.armory_url.clone().replace("worldofwarcraft.blizzard.com/en-gb/character", "raider.io/characters");
+            ui.add(Hyperlink::from_label_and_url("Raider.IO", format!("{}", converted_url)));
             if checked_player.as_ref().is_none() && ui.button("Recheck").on_hover_text("Rechecks this player.").clicked() == true {
                 should_recheck = true;
             }
@@ -349,32 +426,77 @@ impl SignUpsUI {
             ui.label("");
         }
 
+        let mut boss_killed: BTreeMap<String, (String, Vec<String>)> = BTreeMap::new();
+        for raid in &player.raid_data {
+            if settings.required_raids.get(&(*raid.0 as i32)).is_some() {
+                for boss in &raid.1.bosses {
+                    for difficulty in &boss.1.difficulties {
+                        let required_difficulties = settings.required_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
+                        if required_difficulties.is_some() {
+                            if required_difficulties.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
+                                if difficulty.1.killed_before == false {
+                                    let status = boss_killed.entry(boss.1.boss_name.clone()).or_default();
+                                    status.0 = raid.1.raid_name.clone();
+                                    status.1.push(difficulty.1.difficulty_name.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let mut raid_name = String::new();
-        if player.unkilled_bosses.len() > 0 {
+        if boss_killed.len() > 0 {
             ui.label(format!("{} has not killed the following bosses:", player.name.clone()));
-            for boss in player.unkilled_bosses.iter() {
-                if raid_name != boss.0 {
-                    raid_name = boss.0.clone();
+            for boss in boss_killed.iter() {
+                if raid_name != boss.1.0 {
+                    raid_name = boss.1.0.clone();
                     ui.heading(format!("{}", raid_name));
                 }
 
-                ui.label(format!("\t{}", boss.1));
+                let difficulties = boss.1.1.join(", ");
+                ui.label(format!("\t{} ({})", boss.0, difficulties));
             }
 
             ui.label("");
             ui.label("");
         }
 
+        let mut saved_bosses: BTreeMap<String, (String, Vec<String>, u64)> = BTreeMap::new();
+        for raid in &player.raid_data {
+            if settings.saved_raids.get(&(*raid.0 as i32)).is_some() {
+                for boss in &raid.1.bosses {
+                    for difficulty in &boss.1.difficulties {
+                        let saved_difficulty = settings.saved_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
+                        if saved_difficulty.is_some() {
+                            if saved_difficulty.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
+                                if difficulty.1.boss_kill_time.is_some() {
+                                    if difficulty.1.boss_kill_time.unwrap() > SavedChecker::get_wednesday_reset_timestamp() as u64 {
+                                        let status = saved_bosses.entry(boss.1.boss_name.clone()).or_default();
+                                        status.0 = raid.1.raid_name.clone();
+                                        status.1.push(difficulty.1.difficulty_name.clone());
+                                        status.2 = difficulty.1.boss_kill_time.unwrap() / 1000;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         let mut raid_name = String::new();
-        if player.saved_bosses.len() > 0 {
+        if saved_bosses.len() > 0 {
             ui.label(format!("{} is saved to these bosses this reset:", player.name.clone()));
-            for boss in player.saved_bosses.iter() {
-                if raid_name != boss.0 {
-                    raid_name = boss.0.clone();
+            for boss in saved_bosses.iter() {
+                if raid_name != boss.1.0 {
+                    raid_name = boss.1.0.clone();
                     ui.heading(format!("{}", raid_name));
                 }
 
-                ui.label(format!("\t{}", boss.1));
+                let difficulties = boss.1.1.join(", ");
+                let kill_time: DateTime<Utc> = Utc.timestamp_opt(boss.1.2 as i64, 0).unwrap();
+                ui.label(format!("\t{} ({}) killed @ {}", boss.0, difficulties, kill_time.format("%A %H:%M")));
             }
 
             ui.label("");

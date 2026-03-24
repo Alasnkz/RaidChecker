@@ -5,6 +5,7 @@ use crate::config::{self, expansion_config::ExpansionRaid, settings::{RequiredRa
 pub(crate) struct SettingsUi {
     pub draw_item_requirements: bool,
     pub draw_raid_requirements: bool,
+    pub draw_saved_checker: bool,
     pub draw_priority: bool,
     pub colour_settings: bool,
     pub current_raid_id: i32,
@@ -16,10 +17,11 @@ impl SettingsUi {
         Self {
             draw_item_requirements: false,
             draw_raid_requirements: false,
+            draw_saved_checker: false,
             draw_priority: false,
             colour_settings: false,
             current_raid_id: 0,
-            current_raid_difficulty: 0,
+            current_raid_difficulty: 1,
         }
     }
 
@@ -34,7 +36,11 @@ impl SettingsUi {
                         self.draw_item_requirements = !self.draw_item_requirements;
                         settings.save_mut();
                     }
-                    if ui.button("Raid Requirements").clicked() {
+                    if ui.button("Saved Bosses Checker").clicked() {
+                        self.draw_saved_checker = !self.draw_saved_checker;
+                        settings.save_mut();
+                    }
+                    if ui.button("Boss Killed Requirements").clicked() {
                         self.draw_raid_requirements = !self.draw_raid_requirements;
                         settings.save_mut();
                     }
@@ -55,6 +61,13 @@ impl SettingsUi {
         if self.draw_item_requirements {
             if Self::draw_item_requirements_settings(ctx, settings, expansions) {
                 self.draw_item_requirements = false;
+                settings.save_mut();
+            }
+        }
+
+        if self.draw_saved_checker {
+            if self.draw_raid_save_boss_checker(ctx, settings, expansions) {
+                self.draw_saved_checker = false;
                 settings.save_mut();
             }
         }
@@ -281,6 +294,119 @@ impl SettingsUi {
                         });
 
                     let raid_difficulty = settings.required_raids.get_mut(&self.current_raid_id).unwrap().difficulty.entry(self.current_raid_difficulty).or_insert(RequiredRaidDifficulty {
+                        boss_ids: Vec::new(),
+                    });
+
+                    ui.horizontal(|ui| {
+                        if ui.button("Enable all bosses").on_hover_ui(|ui| {
+                            ui.label("Enable all bosses for this raid.");
+                        }).clicked() {
+                            raid_difficulty.boss_ids.clear();
+                            for i in 0..expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.len() {
+                                raid_difficulty.boss_ids.push(i as i32);
+                            }
+                        };
+    
+                        if ui.button("Disable all bosses").on_hover_ui(|ui| {
+                            ui.label("Disable all bosses for this raid.");
+                        }).clicked() {
+                            raid_difficulty.boss_ids.clear();
+                        };
+                    });
+
+                    let mut bid = 0;
+                    for boss in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.iter() {
+                        let mut tmp = raid_difficulty.boss_ids.contains(&bid);
+                        if ui.checkbox(&mut tmp, boss).changed() {
+                            if tmp {
+                                raid_difficulty.boss_ids.push(bid);
+                            } else {
+                                raid_difficulty.boss_ids.retain(|&x| x != bid);
+                            }
+                        }
+                        bid += 1;
+                    }
+                });
+                if ui.button("Close").clicked() {
+                    close = true;
+                }
+            });
+        return close;
+    }
+
+    fn draw_raid_save_boss_checker(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, expansion_config: &config::expansion_config::ExpansionsConfig) -> bool {
+        let mut close: bool = false;
+        egui::Window::new("Raid Requirements - Saved Bosses")
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                if expansion_config.latest_expansion.is_none() || expansion_config.latest_expansion.as_ref().unwrap().latest_season.is_none() {
+                    ui.label("No raids were found.");
+                    if ui.button("Close").clicked() {
+                        close = true;
+                    }
+                    return;
+                }
+
+                ui.vertical(|ui| {
+                    if settings.saved_raids.is_empty() || 
+                            settings.saved_raids.iter().find(|x| expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(*x.0).is_none()).is_some() {
+                        let latest_raid = expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id;
+                        settings.saved_raids.clear();
+                        settings.saved_raids.insert(latest_raid, RequiredRaid {
+                            id: latest_raid,
+                            difficulty: BTreeMap::new(),
+                        });
+                        self.current_raid_id = latest_raid;
+                    }
+
+                    egui::ComboBox::from_label("Saved bosses check")
+                        .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).identifier))
+                        .show_ui(ui, |ui| {
+                            for season in expansion_config.latest_expansion.as_ref().unwrap().seasons.iter() {
+                                ui.label(season.seasonal_identifier.clone());
+                                for raid in season.raids.iter() {
+                                    let text_colour = if settings.saved_raids.get(&raid.id).is_some() && settings.saved_raids.get(&raid.id).unwrap().difficulty.iter().any(|d| !d.1.boss_ids.is_empty()) {
+                                        egui::Color32::YELLOW
+                                    } 
+                                    else{ 
+                                        egui::Color32::WHITE
+                                    };
+
+                                    ui.selectable_value(&mut self.current_raid_id, raid.id, egui::RichText::new(raid.identifier.clone()).color(text_colour));
+                                }
+
+                                if season.seasonal_identifier == expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().seasonal_identifier {
+                                    break;
+                                }
+                            }
+                        });
+
+                    if settings.saved_raids.get(&self.current_raid_id).is_none() {
+                        settings.saved_raids.insert(self.current_raid_id, RequiredRaid {
+                            id: self.current_raid_id,
+                            difficulty: BTreeMap::new(),
+                        });
+                    }
+
+                    egui::ComboBox::from_label("Selected difficulty")
+                        .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.get(self.current_raid_difficulty as usize).unwrap().difficulty_name))
+                        .show_ui(ui, |ui| {
+                            for difficulty in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.iter() {
+                                let text_colour = if settings.saved_raids.get(&self.current_raid_id).is_some() && 
+                                    settings.saved_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).is_some() &&
+                                    !settings.saved_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).unwrap().boss_ids.is_empty() {
+                                    egui::Color32::YELLOW
+                                } 
+                                else{ 
+                                    egui::Color32::WHITE
+                                };
+
+                                ui.selectable_value(&mut self.current_raid_difficulty, difficulty.id, egui::RichText::new(difficulty.difficulty_name.clone()).color(text_colour));
+                            }
+                        });
+
+                    let raid_difficulty = settings.saved_raids.get_mut(&self.current_raid_id).unwrap().difficulty.entry(self.current_raid_difficulty).or_insert(RequiredRaidDifficulty {
                         boss_ids: Vec::new(),
                     });
 

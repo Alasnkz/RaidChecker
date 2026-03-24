@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use regex::Regex;
 
-use crate::{checker::{check_player::PlayerChecker, raid_sheet::PlayerOnlyCheckType}, config::{self, expansion_config::ExpansionRaid, settings::{RequiredRaid, RequiredRaidDifficulty}}};
+use crate::{checker::{check_player::PlayerChecker, raid_sheet::PlayerOnlyCheckType}, config::{self, expansion_config::ExpansionRaid, settings::{Settings, RequiredRaid, RequiredRaidDifficulty}}};
 
 #[derive(PartialEq)]
 pub(crate) enum QuestionState {
@@ -84,7 +84,8 @@ impl Default for RaidCheckQuestions {
 }
 
 impl RaidCheckQuestions {
-    pub fn ask_questions(&mut self, ctx: &eframe::egui::Context, expansion_config: &config::expansion_config::ExpansionsConfig, url: Option<String>, is_player: Option<PlayerOnlyCheckType>) -> Option<(String, BTreeMap<i32, RequiredRaid>, PlayerOnlyCheckType)> {
+    pub fn ask_questions(&mut self, ctx: &eframe::egui::Context, expansion_config: &config::expansion_config::ExpansionsConfig, url: Option<String>, is_player: Option<PlayerOnlyCheckType>,
+        settings: &mut Settings) -> Option<(String, BTreeMap<i32, RequiredRaid>, PlayerOnlyCheckType)> {
         let mut send_it: Option<(String, BTreeMap<i32, RequiredRaid>, PlayerOnlyCheckType)> = None;
         if url.clone().is_some() {
             self.raid_helper_url = url.clone().unwrap();
@@ -97,7 +98,20 @@ impl RaidCheckQuestions {
 
         match self.state {
             QuestionState::AskSaved => {
-                if expansion_config.latest_expansion.is_none() || expansion_config.latest_expansion.as_ref().unwrap().latest_season.is_none() {
+                if settings.save_moved_message == false {
+                    egui::Window::new("Saved is moved")
+                    .show(ctx, |ui| {
+                        ui.label("The saved checker is now in the settings, and will update dynamically from the current snapshot of the player's armoury.\n\nThis message will not be shown again.");
+                        if ui.button("Ok").clicked() {
+                            settings.save_moved_message = true;
+                            settings.save_mut();
+                            self.state = QuestionState::AskRaidHelperURL;
+                        }
+                    });
+                } else {
+                    self.state = QuestionState::AskRaidHelperURL;
+                }
+                /*if expansion_config.latest_expansion.is_none() || expansion_config.latest_expansion.as_ref().unwrap().latest_season.is_none() {
                     egui::Window::new("Raid Checker - Save Checker")
                         .collapsible(false)
                         .resizable(false)
@@ -144,7 +158,7 @@ impl RaidCheckQuestions {
                                 }
                             });
                         });
-                    }
+                    }*/
             },
 
             QuestionState::AskSavedBosses => {

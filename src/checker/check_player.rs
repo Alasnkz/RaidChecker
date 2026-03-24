@@ -5,7 +5,7 @@ use reqwest::blocking::Client;
 use scraper::{Html, Selector};
 use tracing::info;
 use strsim::jaro_winkler;
-use crate::{checker::{buff_checker::BuffChecker, progress_checker::ProgressChecker, saved_checker::SavedChecker}, config::{self, realms::RealmJson, settings::RequiredRaid}};
+use crate::{checker::{armory_checker::{PlayerRaidData}, buff_checker::BuffChecker, progress_checker::ProgressChecker, saved_checker::SavedChecker}, config::{self, realms::RealmJson, settings::RequiredRaid}};
 
 use super::{armory_checker::{RaidProgressStatus, ArmoryChecker}, raid_sheet::{Player, RaidHelperCheckerStatus, RaidHelperUIStatus}};
 
@@ -30,13 +30,13 @@ fn converted_name_correct_realm(ourl: String, realms: &RealmJson) -> String {
 
 
 fn is_valid_name(name: &str) -> bool {
-    let re = Regex::new(r"^[\p{L}\-\']+$").unwrap(); // \p{L} matches letters, \- for hyphen, \' for apostrophe
-    re.is_match(name)
+    let re = Regex::new(r"^[\p{L}'’`-]+$").unwrap();
+    re.is_match(name)// && name.contains("-")
 }
 
 fn process_name(name: &str) -> Option<(String, String)> {
-    let cleaned_name = name.replace("/", "-");
-
+    let cleaned_name = name.replace("/", "-").replace("`", "'").replace("’", "'");
+    info!("{}", cleaned_name);
     if is_valid_name(&cleaned_name) {
         let parts: Vec<&str> = cleaned_name.split('-').collect();
         
@@ -47,6 +47,7 @@ fn process_name(name: &str) -> Option<(String, String)> {
             Some((cleaned_name.clone(), cleaned_name.clone()))
         }
     } else {
+        info!("{name} is not a valid name.");
         None
     }
 }
@@ -66,14 +67,13 @@ pub struct PlayerData {
     pub discord_id: String,
     pub name: String,
     pub status: String,
-    pub unkilled_bosses: Vec<(String, String)>,
     pub bad_gear: Vec<String>,
     pub bad_socket: Vec<String>,
     pub bad_special_item: Vec<String>,
     pub num_embelishments: i32,
+    pub raid_data: BTreeMap<usize, PlayerRaidData>,
     pub ilvl: i32,
     pub lvl: u8,
-    pub saved_bosses: Vec<(String, String)>,
     pub aotc_status: BTreeMap<i32, (String, RaidProgressStatus)>,
     pub buff_status: BTreeMap<i32, (String, i32, bool, i32, i32)>,
     pub tier_count: i32,
@@ -119,6 +119,7 @@ impl PlayerChecker {
             } 
 
             if armory_data.is_none() {
+
                 let search_response = Self::search_prompt(&name.1.clone(), Some(player), thread_sender, thread_reciever, Some(max_level));
                 match search_response {
                     SearchPromptResult::Url(search_url) => {
@@ -131,14 +132,13 @@ impl PlayerChecker {
                             discord_id: player.userId.clone(),
                             name: player.name.clone(),
                             status: player.status.clone(),
-                            unkilled_bosses: Vec::new(),
                             bad_gear: Vec::new(),
                             bad_socket: Vec::new(),
                             bad_special_item: Vec::new(),
                             num_embelishments: -1,
                             ilvl: 0,
                             lvl: 0,
-                            saved_bosses: Vec::new(),
+                            raid_data: BTreeMap::new(),
                             aotc_status: BTreeMap::new(),
                             buff_status: BTreeMap::new(),
                             tier_count: -1,
@@ -168,14 +168,13 @@ impl PlayerChecker {
                         discord_id: player.userId.clone(),
                         name: player.name.clone(),
                         status: player.status.clone(),
-                        unkilled_bosses: Vec::new(),
                         bad_gear: Vec::new(),
                         bad_socket: Vec::new(),
                         bad_special_item: Vec::new(),
                         num_embelishments: -1,
                         ilvl: 0,
                         lvl: 0,
-                        saved_bosses: Vec::new(),
+                        raid_data: BTreeMap::new(),
                         aotc_status: BTreeMap::new(),
                         buff_status: BTreeMap::new(),
                         tier_count: -1,
@@ -205,14 +204,13 @@ impl PlayerChecker {
                             discord_id: player.userId.clone(),
                             name: player.name.clone(),
                             status: player.status.clone(),
-                            unkilled_bosses: Vec::new(),
                             bad_gear: Vec::new(),
                             bad_socket: Vec::new(),
                             bad_special_item: Vec::new(),
                             num_embelishments: -1,
                             ilvl: 0,
                             lvl: 0,
-                            saved_bosses: Vec::new(),
+                            raid_data: BTreeMap::new(),
                             aotc_status: BTreeMap::new(),
                             buff_status: BTreeMap::new(),
                             tier_count: -1,
@@ -230,12 +228,13 @@ impl PlayerChecker {
         }
 
         info!("------------------- Checking player {} -------------------", player.name);
+        let mut raid_data: BTreeMap<usize, PlayerRaidData> = BTreeMap::new();
         let data = armory_data.unwrap();
-        let unkilled_bosses = ArmoryChecker::check_raid_boss_kills(&data, settings);
+        ArmoryChecker::check_raid_boss_kills(&data, &mut raid_data);
         let (bad_enchant_gear, bad_socket_gear, bad_special_item, embelishments) = ArmoryChecker::check_gear(&data, settings, expansions);
         info!("Character has {} ilvl", data.character.average_item_level);
         let ilvl = data.character.average_item_level;
-        let saved_bosses = SavedChecker::check_bosses(&data, &raid_saved_check);
+        SavedChecker::check_bosses(&data, &mut raid_data);
         let aotc_report = ProgressChecker::check_aotc(url.clone(), &data, expansions, &raid_saved_check);
         info!("--- END AOTC CHECK ---");
         let buff_status = BuffChecker::check_raids(url.clone(), expansions, &raid_saved_check);
@@ -251,14 +250,13 @@ impl PlayerChecker {
             discord_id: player.userId.clone(),
             name: player.name.clone(),
             status: player.status.clone(),
-            unkilled_bosses: unkilled_bosses,
             bad_gear: bad_enchant_gear,
             bad_socket: bad_socket_gear,
             bad_special_item: bad_special_item,
             num_embelishments: embelishments,
             ilvl: ilvl,
             lvl: data.character.level,
-            saved_bosses: saved_bosses,
+            raid_data: raid_data,
             aotc_status: aotc_report,
             buff_status: buff_status,
             tier_count: tier_count,

@@ -210,6 +210,26 @@ pub enum RaidProgressStatus {
     Skipped,
     Error
 }
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct PlayerRaidBossDifficultyData {
+    pub difficulty_id: usize,
+    pub difficulty_name: String,
+    pub boss_kill_time: Option<u64>,
+    pub killed_before: bool
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct PlayerRaidBossData {
+    pub boss_id: usize,
+    pub boss_name: String,
+    pub difficulties: BTreeMap<usize, PlayerRaidBossDifficultyData>
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct PlayerRaidData {
+    pub raid_name: String,
+    pub bosses: BTreeMap<usize, PlayerRaidBossData>
+}
 
 impl ArmoryChecker {
     pub fn check_armory(name_url: &str) -> Option<ArmoryCharacterResponse> {
@@ -243,15 +263,36 @@ impl ArmoryChecker {
         return None;
     }
 
-    pub fn check_raid_boss_kills(armory: &ArmoryCharacterResponse, settings: &config::settings::Settings) -> Vec<(String, String)> {
-        info!("Checking raid boss kills for raid IDs: {:?}", settings.required_raids);
-        let mut unkilled_bosses = Vec::new();
+    pub fn check_raid_boss_kills(armory: &ArmoryCharacterResponse, raid_data: &mut BTreeMap<usize, PlayerRaidData>) {
+        //info!("Checking raid boss kills for raid IDs: {:?}", settings.required_raids);
+        //let mut unkilled_bosses = Vec::new();
         
         if armory.summary.raids.is_empty() {
             warn!("No raid data found for character");
-            return unkilled_bosses;
+            return;
+            //return unkilled_bosses;
         }
 
+        for raid in &armory.summary.raids {
+            for difficulty in &raid.difficulties {
+                for boss in &difficulty.bosses {
+                    let raid_id = armory.summary.raids.iter().position(|x| x.name == raid.name).unwrap();
+                    let difficulty_id = armory.summary.raids.get(raid_id).unwrap().difficulties.iter().position(|x| x.name == difficulty.name).unwrap();
+                    let boss_id = difficulty.bosses.iter().position(|x| x.name == boss.name).unwrap();
+
+                    let boss_data = raid_data.entry(raid_id).or_insert(PlayerRaidData { raid_name: raid.name.clone(), bosses: BTreeMap::new() })
+                        .bosses.entry(boss_id).or_insert(PlayerRaidBossData { boss_id, boss_name: boss.name.clone(), difficulties: BTreeMap::new() })
+                        .difficulties.entry(difficulty_id).or_insert(PlayerRaidBossDifficultyData { difficulty_id, difficulty_name: difficulty.name.clone(), boss_kill_time: None, killed_before: false });
+                    if boss.kill_count > 0 {
+                        boss_data.killed_before = true;
+                    } else {
+                        boss_data.killed_before = false;
+                    }
+                }
+            }
+        }
+
+        /*
         for check_raid_ids in settings.required_raids.iter() {
             let mut seen = HashSet::new();
             let mut unkilled_raid_bosses = BTreeMap::new();
@@ -302,7 +343,7 @@ impl ArmoryChecker {
             }
         }
         info!("Unkilled bosses found {:?}", unkilled_bosses);
-        unkilled_bosses
+        unkilled_bosses*/
     }
 
     pub fn check_gear(armory: &ArmoryCharacterResponse, settings: &config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig) -> (Vec<String>, Vec<String>, Vec<String>, i32) {
