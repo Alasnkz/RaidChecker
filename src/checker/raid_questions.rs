@@ -30,41 +30,31 @@ pub enum MatchType {
 }
 
 pub fn get_url_match_type(url: &str) -> Option<MatchType> {
-    let re_raidplan = Regex::new(r"^https://raid-helper\.dev/raidplan/(\w+)$").unwrap();
-    let re_event = Regex::new(r"^https://raid-helper\.dev/event/(\w+)$").unwrap();
-    let re_api_v2_event = Regex::new(r"^https://raid-helper\.dev/api/v2/events/(\w+)$").unwrap();
+    let re_raidplan = Regex::new(r"^https://raid-helper\.(dev|xyz)/raidplan/(\w+)$").unwrap();
+    let re_event = Regex::new(r"^https://raid-helper\.(dev|xyz)/event/(\w+)$").unwrap();
+    let re_api_v2_event = Regex::new(r"^https://raid-helper\.(dev|xyz)/api/v2/events/(\w+)$").unwrap();
 
     if let Some(caps) = re_raidplan.captures(url) {
-        Some(MatchType::RaidPlan(caps[1].to_string()))
+        Some(MatchType::RaidPlan(caps[2].to_string()))
     } else if let Some(caps) = re_event.captures(url) {
-        Some(MatchType::Event(caps[1].to_string()))
+        Some(MatchType::Event(caps[2].to_string()))
     } else if let Some(caps) = re_api_v2_event.captures(url) {
-        Some(MatchType::ApiV2Event(caps[1].to_string()))
+        Some(MatchType::ApiV2Event(caps[2].to_string()))
     } else {
         None
     }
 }
 
 fn check_raidhelper_url(url: String) -> Option<String> {
-    loop {
-        let url_type = get_url_match_type(&url);
-        match url_type {
-            Some(MatchType::RaidPlan(id)) => {
-                return Some(format!("https://raid-helper.dev/api/v2/events/{id}"));
-            },
-
-            Some(MatchType::Event(id)) => {
-                return Some(format!("https://raid-helper.dev/api/v2/events/{id}"));
-            },
-
-            Some(MatchType::ApiV2Event(_id)) => {
-                return Some(url)
-            },
-
-            _ => {
-                return None;
-            }
+    match get_url_match_type(&url) {
+        Some(MatchType::RaidPlan(id)) |
+        Some(MatchType::Event(id)) => {
+            Some(format!("https://raid-helper.dev/api/v2/events/{id}"))
         }
+
+        Some(MatchType::ApiV2Event(_)) => Some(url),
+
+        _ => None,
     }
 }
 

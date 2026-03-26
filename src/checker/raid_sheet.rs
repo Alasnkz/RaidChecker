@@ -270,7 +270,7 @@ impl RaidSheet {
             }
 
             response = client
-                .get(format!("https://raid-helper.dev/api/raidplan/{}", raid_response.id))
+                .get(format!("https://raid-helper.xyz/api/raidplan/{}", raid_response.id))
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
                 .send();
 
@@ -314,7 +314,7 @@ impl RaidSheet {
         
         let client = Client::new();
         let response = client
-            .get(format!("https://raid-helper.dev/api/raidplan/{}", last_raid.raid_id))
+            .get(format!("https://raid-helper.xyz/api/raidplan/{}", last_raid.raid_id))
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
             .send();
 
