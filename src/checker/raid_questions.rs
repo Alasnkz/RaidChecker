@@ -49,7 +49,7 @@ fn check_raidhelper_url(url: String) -> Option<String> {
     match get_url_match_type(&url) {
         Some(MatchType::RaidPlan(id)) |
         Some(MatchType::Event(id)) => {
-            Some(format!("https://raid-helper.dev/api/v2/events/{id}"))
+            Some(format!("https://raid-helper.xyz/api/v2/events/{id}"))
         }
 
         Some(MatchType::ApiV2Event(_)) => Some(url),
