@@ -1,6 +1,6 @@
 [package]
 name = "RaidChecker"
-version = "2.0.3"
+version = "2.0.4"
 edition = "2021"
 
 [dependencies]
@@ -10,7 +10,7 @@ eframe = "0.31.0"
 egui = "0.31.0"
 md5 = "0.7.0"
 regex = "1.11.1"
-reqwest = { version = "0.12.12", features = ["blocking"] }
+reqwest = { version = "0.12.12", features = ["blocking", "gzip", "brotli", "zstd", "deflate", "json"] }
 scraper = "0.22.0"
 semver = "1.0.26"
 serde = { version = "1.0.219", features = ["derive"] }

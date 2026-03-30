@@ -32,7 +32,7 @@ pub enum MatchType {
 pub fn get_url_match_type(url: &str) -> Option<MatchType> {
     let re_raidplan = Regex::new(r"^https://raid-helper\.(dev|xyz)/raidplan/(\w+)$").unwrap();
     let re_event = Regex::new(r"^https://raid-helper\.(dev|xyz)/event/(\w+)$").unwrap();
-    let re_api_v2_event = Regex::new(r"^https://raid-helper\.(dev|xyz)/api/v2/events/(\w+)$").unwrap();
+    let re_api_v2_event = Regex::new(r"^https://raid-helper\.(dev|xyz)/api/v4/events/(\w+)$").unwrap();
 
     if let Some(caps) = re_raidplan.captures(url) {
         Some(MatchType::RaidPlan(caps[2].to_string()))
@@ -49,7 +49,7 @@ fn check_raidhelper_url(url: String) -> Option<String> {
     match get_url_match_type(&url) {
         Some(MatchType::RaidPlan(id)) |
         Some(MatchType::Event(id)) => {
-            Some(format!("https://raid-helper.xyz/api/v2/events/{id}"))
+            Some(format!("https://raid-helper.xyz/api/v4/events/{id}"))
         }
 
         Some(MatchType::ApiV2Event(_)) => Some(url),

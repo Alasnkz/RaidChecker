@@ -1,6 +1,8 @@
-use reqwest::blocking::Client;
+use regex::Regex;
+use reqwest::{blocking::Client, header::{ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, CONNECTION, HeaderMap, HeaderValue, USER_AGENT}};
+use serde_json::{Deserializer, Value, from_value};
 use tracing::info;
-use std::{collections::BTreeMap, sync::mpsc::{self, Receiver, Sender}, thread};
+use std::{collections::BTreeMap, fs::File, io::{Read, Write}, sync::mpsc::{self, Receiver, Sender}, thread};
 
 use crate::config::{self, last_raid::LastRaid, settings::RequiredRaid};
 
@@ -17,7 +19,7 @@ pub static RAID_PLAN_UNCONFIRMED: u8 = 2;
 pub static RAID_PLAN_CANCELLED: u8 = 1;
 pub static RAID_PLAN_NONE: u8 = 0;
 
-#[derive(serde::Deserialize, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct Player {
     pub position: i32,
     pub specName: Option<String>,
@@ -28,12 +30,12 @@ pub struct Player {
     pub status: String
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, serde::Serialize)]
 struct RaidHelper {
+    signUps: Vec<Player>,
     #[serde(alias = "displayTitle")]
     name: String,
-    signUps: Vec<Player>,
-    id: String
+    id: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -197,24 +199,23 @@ impl RaidSheet {
 
 
         thread::spawn(move || {
-            let client = Client::new();
+            let client = Client::builder()
+                .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+                .build().unwrap();
+
             let mut response = client
                 .get(url.clone())
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
                 .send();
 
-            if response.is_err() {
-                let _ = thread_sender.send(RaidHelperCheckerStatus::Error(format!("Failed to get response: {:?}", response.err())));
+            let o_bytes = response.unwrap().bytes();
+            if o_bytes.is_err() {
+                let _ = thread_sender.send(RaidHelperCheckerStatus::Error(format!("Failed to get bytes: {:?}", o_bytes.err())));
                 return;
             }
+            let bytes = o_bytes.unwrap();
 
-            let text = response.unwrap().text();
-            if text.is_err() {
-                let _ = thread_sender.send(RaidHelperCheckerStatus::Error(format!("Failed to get response text: {:?}", text.err())));
-                return;
-            }
 
-            let raid_response_res: Result<RaidHelper, serde_json::Error> = serde_json::from_str(&text.unwrap());
+            let raid_response_res: Result<RaidHelper, serde_json::Error> = serde_json::from_str(&String::from_utf8_lossy(&bytes));
             if raid_response_res.is_err() {
                 let _ = thread_sender.send(RaidHelperCheckerStatus::Error(format!("Failed to parse response: {:?}", raid_response_res.err())));
                 return;
