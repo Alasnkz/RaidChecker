@@ -80,7 +80,9 @@ pub struct PlayerData {
     pub skip_reason: Option<String>,
     pub armory_url: String,
     pub queued: bool,
-    pub confirmed: u8
+    pub confirmed: u8,
+    pub class_name: String,
+    pub role_name: String
 }
 
 enum SearchPromptResult {
@@ -145,7 +147,9 @@ impl PlayerChecker {
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
                             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
-                            confirmed: 0
+                            confirmed: 0,
+                            class_name: player.className.clone().to_lowercase(),
+                            role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase()
                         });
                     },
 
@@ -181,7 +185,9 @@ impl PlayerChecker {
                         skip_reason: Some("Skipped by user.".to_owned()),
                         armory_url: "".to_owned(),
                         queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
-                        confirmed: 0
+                        confirmed: 0,
+                        class_name: player.className.clone().to_lowercase(),
+                        role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase()
                     });
                 },
 
@@ -217,7 +223,9 @@ impl PlayerChecker {
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
                             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
-                            confirmed: 0
+                            confirmed: 0,
+                            class_name: player.className.clone().to_lowercase(),
+                            role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase()
                         });
                     }
                     _ => return None
@@ -263,7 +271,9 @@ impl PlayerChecker {
             skip_reason: None,
             armory_url: url.clone(),
             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
-            confirmed: 0
+            confirmed: 0,
+            class_name: player.className.clone().to_lowercase(),
+            role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase()
         })
     }
 

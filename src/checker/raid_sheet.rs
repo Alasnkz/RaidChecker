@@ -31,11 +31,18 @@ pub struct Player {
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
+struct Roles {
+    name: Option<String>
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
 struct RaidHelper {
     signUps: Vec<Player>,
     #[serde(alias = "displayTitle")]
     name: String,
     id: String,
+    templateId: Option<String>,
+    roles: Option<Vec<Roles>>
 }
 
 #[derive(serde::Deserialize)]
@@ -62,19 +69,24 @@ pub enum RaidSheetState {
     Wait, // Getting data
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, PartialEq)]
+pub enum RaidSheetType {
+    Normal,
+    Classes
+}
+
 pub struct RaidSheet {
    pub(crate) state: RaidSheetState,
    pub(crate) ui_sender: Sender<RaidHelperUIStatus>,
    pub(crate) ui_reciever: Receiver<RaidHelperCheckerStatus>,
    pub(crate) search_filter: String,
    pub(crate) question_string: String,
-   pub(crate) wait_counter: usize,
-   pub(crate) frame_counter: usize,
    pub(crate) dirty: bool,
 
    // Player stuff
    pub(crate) active_players: Vec<PlayerData>,
    pub(crate) queued_players: Vec<PlayerData>,
+   pub(crate) sheet_type: RaidSheetType
 }
 
 impl Default for Player {
@@ -86,7 +98,7 @@ impl Default for Player {
             roleName: None,
             className: String::default(),
             userId: String::default(),
-            status: String::default()
+            status: String::default(),
         }
     }
 }
@@ -100,12 +112,11 @@ impl Default for RaidSheet {
             ui_reciever: rx2,
             search_filter: String::default(),
             question_string: String::default(),
-            wait_counter: 0,
-            frame_counter: 0,
             dirty: false,
 
             active_players: Vec::new(),
             queued_players: Vec::new(),
+            sheet_type: RaidSheetType::Normal
         }
     }
 }
@@ -180,7 +191,7 @@ impl RaidSheet {
         if is_player_only != PlayerOnlyCheckType::None {
             thread::spawn(move || {
                 let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("player {}", url.clone())));
-                let mut player = Player::default();
+                let mut player: Player = Player::default();
                 player.name = url.clone();
 
                 let player_data = PlayerChecker::check_player(&player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, None);
@@ -242,8 +253,15 @@ impl RaidSheet {
                 };
 
                 let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("{} {}/{}", player.name, count, viable.len())));
-                let player_data = PlayerChecker::check_player(player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, player_url);
+                let mut player_data = PlayerChecker::check_player(player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, player_url);
+
                 if player_data.is_some() {
+                    player_data.as_mut().unwrap().role_name = match player.roleName.clone().unwrap_or_default().as_str() {
+                        "Tanks" | "Tank" => "tank".to_string(),
+                        "Healers" | "Healer" => "healer".to_string(),
+                        _ => player.roleName.clone().unwrap_or_default().to_lowercase()
+                    };
+
                     vec_player.push(player_data.unwrap());
                 } else {
                     vec_player.push(PlayerData {
@@ -263,12 +281,20 @@ impl RaidSheet {
                         skip_reason: Some("Could not find player".to_owned()),
                         armory_url: "".to_owned(),
                         queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" ,
-                        confirmed: 0
+                        confirmed: 0,
+                        class_name: player.className.clone().to_lowercase(),
+                        role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase()
                     });
                 }
                 
                 count += 1;
             }
+
+            let sheet_type = if raid_response.templateId.unwrap_or("N/A".to_string()) == "wowretail1" || raid_response.roles.iter().len() > 1 {
+                RaidSheetType::Classes
+            } else {
+                RaidSheetType::Normal
+            };
 
             response = client
                 .get(format!("https://raid-helper.xyz/api/raidplan/{}", raid_response.id))
@@ -303,6 +329,7 @@ impl RaidSheet {
                 raid_url: url,
                 raid_name: raid_response.name,
                 raid_id: raid_response.id,
+                sheet_type: sheet_type,
                 players: vec_player,
             }));
        });
@@ -403,6 +430,7 @@ impl RaidSheet {
                     }
                     self.dirty = true;
                     *just_checked = true;
+                    self.sheet_type = results.sheet_type;
                     self.state = RaidSheetState::None;
                 }
 

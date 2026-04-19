@@ -5,12 +5,14 @@ use std::io::{self, Write};
 use tracing::error;
 
 use crate::checker::check_player::PlayerData;
+use crate::checker::raid_sheet::RaidSheetType;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct LastRaid {
     pub raid_url: String,
     pub raid_id: String,
     pub raid_name: String,
+    pub sheet_type: RaidSheetType,
     pub players: Vec<PlayerData>
 }
 
@@ -20,7 +22,7 @@ impl Default for LastRaid    {
             raid_url: String::default(),
             raid_id: String::default(),
             raid_name: String::default(),
-            
+            sheet_type: RaidSheetType::Normal,
             players: Vec::new()
         }
     }

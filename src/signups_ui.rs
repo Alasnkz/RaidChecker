@@ -5,7 +5,7 @@ use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui, epaint::colo
 use tracing::info;
 use tracing_subscriber::fmt::format;
 
-use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_UNCONFIRMED}, saved_checker::SavedChecker}, config::{self, expansion_config::ExpansionsConfig, settings::PriorityChecks}};
+use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_UNCONFIRMED, RaidSheetType}, saved_checker::SavedChecker}, config::{self, expansion_config::ExpansionsConfig, settings::PriorityChecks}};
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct BossKey {
@@ -27,7 +27,7 @@ impl Default for SignUpsUI {
 
 impl SignUpsUI {
     pub fn draw_signups(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, expansions: &ExpansionsConfig, primary_people: &Vec<PlayerData>, 
-        queued_people: &Vec<PlayerData>, should_recheck: &mut u8, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> Option<PlayerData> {
+        queued_people: &Vec<PlayerData>, sheet_type: RaidSheetType, should_recheck: &mut u8, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> Option<PlayerData> {
         
         let mut recheck_player = None;
         if *clear_target {
@@ -53,20 +53,53 @@ impl SignUpsUI {
                     }
                 });      
 
-                for player in primary_people.iter() {
-                    // Decide what colour they should be?
-                    if ui.label(egui::RichText::new(player.name.clone()).color(Self::colour_player_label(settings, player))).clicked() {
-                        self.target_player = Some(player.clone());
-                    }
+                let roles = ["Tank", "Healer", "Melee", "Ranged", "DPS"];
+
+                for role in roles.iter() {
+                    ui.push_id(format!("{role}P"), |ui| {
+                        if primary_people.iter().find(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()).is_none() {
+                            return;
+                        }
+                        egui::CollapsingHeader::new(*role)
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            for player in primary_people.iter().filter(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()) {
+                                let label_name = if sheet_type == RaidSheetType::Classes {
+                                    format!("{} ({})", player.name.clone(), player.class_name.clone())
+                                } else {
+                                    player.name.clone()
+                                };
+
+                                if ui.label(egui::RichText::new(label_name).color(Self::colour_player_label(settings, player))).clicked() {
+                                    self.target_player = Some(player.clone());
+                                }
+                            }
+                        });
+                    });
                 }
-    
+
                 ui.label("");
                 ui.heading("Queued People");
-                for player in queued_people.iter() {
-                    // Decide what colour they should be?
-                    if ui.label(egui::RichText::new(player.name.clone()).color(Self::colour_player_label(settings, player))).clicked() {
-                        self.target_player = Some(player.clone());
-                    }
+                for role in roles.iter() {
+                    ui.push_id(format!("{role}S"), |ui| {
+                        if queued_people.iter().find(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()).is_none() {
+                            return;
+                        }
+                        egui::CollapsingHeader::new(*role)
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            for player in queued_people.iter().filter(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()) {
+                                let label_name = if sheet_type == RaidSheetType::Classes {
+                                    format!("{} ({})", player.name.clone(), player.class_name.clone())
+                                } else {
+                                    player.name.clone()
+                                };
+                                if ui.label(egui::RichText::new(label_name).color(Self::colour_player_label(settings, player))).clicked() {
+                                    self.target_player = Some(player.clone());
+                                }
+                            }
+                        });
+                    });
                 }
             });
         });
