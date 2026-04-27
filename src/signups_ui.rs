@@ -55,6 +55,7 @@ impl SignUpsUI {
 
                 let roles = ["Tank", "Healer", "Melee", "Ranged", "DPS"];
 
+                let mut primary_players = primary_people.clone();
                 for role in roles.iter() {
                     ui.push_id(format!("{role}P"), |ui| {
                         if primary_people.iter().find(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()).is_none() {
@@ -64,42 +65,80 @@ impl SignUpsUI {
                         .default_open(true)
                         .show(ui, |ui| {
                             for player in primary_people.iter().filter(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()) {
-                                let label_name = if sheet_type == RaidSheetType::Classes {
+                                let mut label_name = if sheet_type == RaidSheetType::Classes {
                                     format!("{} ({})", player.name.clone(), player.class_name.clone())
                                 } else {
                                     player.name.clone()
                                 };
 
+                                if settings.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id).is_some() {
+                                    label_name = format!("⭐ {}", label_name);
+                                }
+
                                 if ui.label(egui::RichText::new(label_name).color(Self::colour_player_label(settings, player))).clicked() {
                                     self.target_player = Some(player.clone());
                                 }
+
+                                primary_players.remove(primary_players.iter().position(|x| x.discord_id == player.discord_id).unwrap());
                             }
                         });
                     });
                 }
 
-                ui.label("");
-                ui.heading("Queued People");
+                if primary_players.len() > 0 {
+                    ui.heading(egui::RichText::new("Recheck needed for new headers!").color(egui::Color32::YELLOW));
+                    ui.heading("Primary People");
+                }
+                for player in primary_players.iter() {
+                    if ui.label(egui::RichText::new(player.name.clone()).color(Self::colour_player_label(settings, player))).clicked() {
+                        self.target_player = Some(player.clone());
+                    }
+                }
+                
+                if queued_people.len() > 0 {
+                    ui.label("");
+                    ui.heading("Queued People");
+                }
+
+                let mut queued_players = queued_people.clone();
                 for role in roles.iter() {
                     ui.push_id(format!("{role}S"), |ui| {
                         if queued_people.iter().find(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()).is_none() {
                             return;
                         }
+                        
                         egui::CollapsingHeader::new(*role)
                         .default_open(true)
                         .show(ui, |ui| {
                             for player in queued_people.iter().filter(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()) {
-                                let label_name = if sheet_type == RaidSheetType::Classes {
+                                let mut label_name = if sheet_type == RaidSheetType::Classes {
                                     format!("{} ({})", player.name.clone(), player.class_name.clone())
                                 } else {
                                     player.name.clone()
                                 };
+
+                                if settings.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id).is_some() {
+                                    label_name = format!("⭐ {}", label_name);
+                                }
+
                                 if ui.label(egui::RichText::new(label_name).color(Self::colour_player_label(settings, player))).clicked() {
                                     self.target_player = Some(player.clone());
                                 }
+
+                                queued_players.remove(queued_players.iter().position(|x| x.discord_id == player.discord_id).unwrap());
                             }
                         });
                     });
+                }
+
+                if queued_players.len() > 0 {
+                    ui.heading(egui::RichText::new("Recheck needed for new headers!").color(egui::Color32::YELLOW));
+                }
+
+                for player in queued_players.iter() {
+                    if ui.label(egui::RichText::new(player.name.clone()).color(Self::colour_player_label(settings, player))).clicked() {
+                        self.target_player = Some(player.clone());
+                    }
                 }
             });
         });
@@ -448,7 +487,24 @@ impl SignUpsUI {
             if checked_player.as_ref().is_none() && ui.button("Recheck").on_hover_text("Rechecks this player.").clicked() == true {
                 should_recheck = true;
             }
+
+            if settings.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id).is_none() && 
+                ui.button("Add regular").on_hover_text("Marks this player as a regular, which will highlight them in the list and show a note on their player info.").clicked() {
+                if settings.regulars.is_none() {
+                    settings.regulars = Some(BTreeMap::new());
+                }
+
+                if settings.regulars.as_ref().unwrap().get(&player.discord_id).is_some() {
+                    settings.regulars.as_mut().unwrap().remove(&player.discord_id);
+                } else {
+                    settings.regulars.as_mut().unwrap().insert(player.discord_id.clone(), player.name.clone());
+                }
+            }
         });
+
+        if let Some(regular) = settings.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id) {
+            ui.add(Label::new(egui::RichText::new(format!("This player is marked as a regular ({}).", regular)).color(egui::Color32::from_rgb(255, 255, 0))));
+        }
 
         let max_level = if expansions.latest_expansion.is_some() {
             expansions.latest_expansion.as_ref().unwrap().max_lvl
@@ -463,6 +519,10 @@ impl SignUpsUI {
         if player.ilvl < settings.average_ilvl {
             ui.label(format!("{} has an ilvl of {} which is below the average ilvl of {}", player.name.clone(), player.ilvl, settings.average_ilvl));
 
+            if player.pvp_gear {
+                ui.label(egui::RichText::new("This player has PvP gear equipped, which may be the cause of the low ilvl.").color(egui::Color32::YELLOW));
+            }
+            
             ui.label("");
             ui.label("");
         }

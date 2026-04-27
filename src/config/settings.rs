@@ -118,6 +118,24 @@ impl Slots {
             (self.wrist.clone(), "wrist"),
         ]
     }
+
+    pub fn get_by_slot_name(&self, slot_name: &str) -> Option<&SlotSetting> {
+        match slot_name {
+            "cloak"  => Some(&self.back),
+            "chest"  => Some(&self.chest),
+            "feet"   => Some(&self.foot),
+            "hand"   => Some(&self.hand),
+            "head"   => Some(&self.head),
+            "finger" => Some(&self.ring),
+            "leg"    => Some(&self.leg),
+            "neck"   => Some(&self.neck),
+            "shoulder" => Some(&self.shoulder),
+            "waist"  => Some(&self.waist),
+            "weapon" => Some(&self.weapon),
+            "wrist"  => Some(&self.wrist),
+            _ => None,
+        }
+    }
 }
 impl Default for Slots {
     fn default() -> Self {
@@ -170,6 +188,7 @@ pub struct Settings {
     pub check_priority: Vec<PriorityChecks>,
     #[serde(default = "default_require_greater")]
     pub save_moved_message: bool,
+    pub regulars: Option<BTreeMap<String, String>>
 }
 
 fn default_saved() -> BTreeMap<i32, RequiredRaid> {
@@ -207,6 +226,7 @@ impl Default for Settings {
             missing_tier_colour: Some([218, 0, 255, 255]),
             buff_colour: Some([0xFF, 0xA5, 0x0, 0xFF]),
             save_moved_message: false,
+            regulars: None,
             check_priority: vec![
                 PriorityChecks::SavedKills,
                 PriorityChecks::Ilvl,

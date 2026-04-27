@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+use tracing::warn;
+
 use crate::config::{self, expansion_config::ExpansionRaid, settings::{RequiredRaid, RequiredRaidDifficulty}};
 
 pub(crate) struct SettingsUi {
@@ -8,8 +10,11 @@ pub(crate) struct SettingsUi {
     pub draw_saved_checker: bool,
     pub draw_priority: bool,
     pub colour_settings: bool,
+    pub regular_settings: bool,
     pub current_raid_id: i32,
     pub current_raid_difficulty: i32,
+    pub priority_name_str: String,
+    pub priority_discord_str: String,
 }
 
 impl SettingsUi {
@@ -20,8 +25,12 @@ impl SettingsUi {
             draw_saved_checker: false,
             draw_priority: false,
             colour_settings: false,
+            regular_settings: false,
             current_raid_id: 0,
             current_raid_difficulty: 1,
+
+            priority_name_str: String::default(),
+            priority_discord_str: String::default(),
         }
     }
 
@@ -52,6 +61,11 @@ impl SettingsUi {
                         self.colour_settings = !self.colour_settings;
                         settings.save_mut();
                     }
+                    if ui.button("Raid Regulars").clicked() {
+                        self.regular_settings = !self.regular_settings;
+                        settings.save_mut();
+                    }
+
                 });
                 if ui.button("Close").clicked() {
                     close = true;
@@ -89,6 +103,13 @@ impl SettingsUi {
         if self.colour_settings {
             if Self::draw_colour_settings(ctx, settings) {
                 self.colour_settings = false;
+                settings.save_mut();
+            }
+        }
+
+        if self.regular_settings {
+            if Self::draw_regular_settings(self, ctx, settings) {
+                self.regular_settings = false;
                 settings.save_mut();
             }
         }
@@ -152,33 +173,33 @@ impl SettingsUi {
                             };
 
                             if !has_enchant && !has_expansional_enchant && item.0.require_slot {
-                                println!("{} has a enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
+                                warn!("{} has a enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
                                 item.0.require_slot = false;
                             }
 
                             if !has_enchant && !has_expansional_enchant && item.0.require_latest {
-                                println!("{} has a latest enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
+                                warn!("{} has a latest enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
                                 item.0.require_latest = false;
                             }
 
 
                             if !has_special_item && item.0.require_special_item {
-                                println!("{} has a special item requirement, but there are no special items associated with it, turning it off.", item.1);
+                                warn!("{} has a special item requirement, but there are no special items associated with it, turning it off.", item.1);
                                 item.0.require_special_item = false;
                             }
 
                             if !has_socket && item.0.require_sockets > 0 {
-                                println!("{} has a socket requirement, but the slot does not require sockets, turning it off.", item.1);
+                                warn!("{} has a socket requirement, but the slot does not require sockets, turning it off.", item.1);
                                 item.0.require_sockets = 0;
                             }
 
                             if !has_greater_socket_item && item.0.require_greater_socket {
-                                println!("{} has a greater socket item requirement, but there are no greater socket items associated with it, turning it off.", item.1);
+                                warn!("{} has a greater socket item requirement, but there are no greater socket items associated with it, turning it off.", item.1);
                                 item.0.require_greater_socket = false;
                             }
 
                             if !has_lesser_enchants && item.0.require_greater {
-                                println!("{} has a greater enchantment requirement, but there are no lesser enchantments associated with it, turning it off.", item.1);
+                                warn!("{} has a greater enchantment requirement, but there are no lesser enchantments associated with it, turning it off.", item.1);
                                 item.0.require_greater = false;
                             }
 
@@ -678,6 +699,60 @@ impl SettingsUi {
                 });
             });
 
+        close
+    }
+
+    fn draw_regular_settings(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings) -> bool {
+        let mut close: bool = false;
+        egui::Window::new("Raid Regulars")
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.vertical(|ui| {
+                    ui.label("Raid Regulars are a feature that allows you to mark players as regulars in Raid Checker.");
+                    ui.label("To add a player to the raid regulars list, simply enter their name and Discord ID, then click the \"Add\" button. You can also remove players from the list by clicking the \"Remove\" button next to their name.");
+                    ui.label("To modify a player's name or Discord ID, simply click on their name, to copy their current info to the textboxes.");
+                    ui.separator();
+
+                    if settings.regulars.is_none() {
+                        settings.regulars = Some(BTreeMap::new());
+                    }
+
+                    if let Some(regulars) = &mut settings.regulars {
+                        let mut new_regulars = regulars.clone();
+                        for (discord_id, name ) in regulars.iter() {
+                            ui.horizontal(|ui| {
+                                if ui.button( name).clicked() {
+                                    self.priority_name_str = name.clone();
+                                    self.priority_discord_str = discord_id.clone();
+                                    new_regulars.remove(discord_id);
+                                }
+                                if ui.button("Remove").clicked() {
+                                    new_regulars.remove(discord_id);
+                                }
+                            });
+                        }
+
+                        ui.horizontal(|ui| {
+                            ui.add(egui::TextEdit::singleline(&mut self.priority_name_str).hint_text("Name").desired_width(150.0));
+                            ui.add(egui::TextEdit::singleline(&mut self.priority_discord_str).hint_text("Discord ID").desired_width(150.0));
+                            if ui.button("Add").clicked() {
+                                if !self.priority_name_str.is_empty() && !self.priority_discord_str.is_empty() {
+                                    new_regulars.insert(self.priority_discord_str.clone(), self.priority_name_str.clone());
+                                    self.priority_name_str = String::new();
+                                    self.priority_discord_str = String::new();
+                                }
+                            }
+                        });
+
+                        settings.regulars = Some(new_regulars);
+                    }
+                });
+
+                if ui.button("Close").clicked() {
+                    close = true;
+                }
+            });
         close
     }
 }

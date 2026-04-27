@@ -42,7 +42,7 @@ struct RaidHelper {
     name: String,
     id: String,
     templateId: Option<String>,
-    roles: Option<Vec<Roles>>
+    roles: Option<Vec<Roles>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -169,6 +169,7 @@ impl RaidSheet {
         self.state = RaidSheetState::None;
         self.active_players.clear();
         self.queued_players.clear();
+        self.sheet_type = last_raid.sheet_type.clone();
         for player in last_raid.players.iter() {
             if player.queued == false {
                 self.active_players.push(player.clone());
@@ -193,6 +194,19 @@ impl RaidSheet {
                 let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("player {}", url.clone())));
                 let mut player: Player = Player::default();
                 player.name = url.clone();
+                info!("Looking for player {} in last raid data", url.clone());
+                if let PlayerOnlyCheckType::PlayerFromSheet(discord) = is_player_only.clone() {
+                    for p in last_raid.players.iter() {
+                        if p.discord_id == discord {
+                            player.className = p.class_name.clone();
+                            player.roleName = Some(p.role_name.clone());
+                            player.userId = p.discord_id.clone();
+                            player.status = if p.queued { "queued".to_string() } else { "primary".to_string() };
+                            break;
+                        }
+                    }
+                }
+                
 
                 let player_data = PlayerChecker::check_player(&player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, None);
                 if player_data.is_some() {
@@ -253,15 +267,9 @@ impl RaidSheet {
                 };
 
                 let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("{} {}/{}", player.name, count, viable.len())));
-                let mut player_data = PlayerChecker::check_player(player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, player_url);
+                let player_data = PlayerChecker::check_player(player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, player_url);
 
                 if player_data.is_some() {
-                    player_data.as_mut().unwrap().role_name = match player.roleName.clone().unwrap_or_default().as_str() {
-                        "Tanks" | "Tank" => "tank".to_string(),
-                        "Healers" | "Healer" => "healer".to_string(),
-                        _ => player.roleName.clone().unwrap_or_default().to_lowercase()
-                    };
-
                     vec_player.push(player_data.unwrap());
                 } else {
                     vec_player.push(PlayerData {
@@ -278,6 +286,7 @@ impl RaidSheet {
                         aotc_status: BTreeMap::new(),
                         buff_status: BTreeMap::new(),
                         tier_count: -1,
+                        pvp_gear: false,
                         skip_reason: Some("Could not find player".to_owned()),
                         armory_url: "".to_owned(),
                         queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" ,
@@ -290,7 +299,7 @@ impl RaidSheet {
                 count += 1;
             }
 
-            let sheet_type = if raid_response.templateId.unwrap_or("N/A".to_string()) == "wowretail1" || raid_response.roles.iter().len() > 1 {
+            let sheet_type = if raid_response.templateId.unwrap_or("N/A".to_string()) == "wowretail1" {
                 RaidSheetType::Classes
             } else {
                 RaidSheetType::Normal
@@ -555,7 +564,7 @@ impl RaidSheet {
                         if ui.label(match &self.state {
                             RaidSheetState::Error(msg) => format!("Error: {}", msg),
                             _ => "No data yet.".to_owned()
-                        }).clicked() {
+                        }).clicked() || ui.button("Close").clicked() {
                             self.state = RaidSheetState::None;
                         }
                     });

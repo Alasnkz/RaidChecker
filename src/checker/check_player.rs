@@ -77,11 +77,15 @@ pub struct PlayerData {
     pub aotc_status: BTreeMap<i32, (String, RaidProgressStatus)>,
     pub buff_status: BTreeMap<i32, (String, i32, bool, i32, i32)>,
     pub tier_count: i32,
+    pub pvp_gear: bool,
     pub skip_reason: Option<String>,
     pub armory_url: String,
     pub queued: bool,
     pub confirmed: u8,
+
+    #[serde(default)]
     pub class_name: String,
+    #[serde(default)]
     pub role_name: String
 }
 
@@ -144,6 +148,7 @@ impl PlayerChecker {
                             aotc_status: BTreeMap::new(),
                             buff_status: BTreeMap::new(),
                             tier_count: -1,
+                            pvp_gear: false,
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
                             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
@@ -182,6 +187,7 @@ impl PlayerChecker {
                         aotc_status: BTreeMap::new(),
                         buff_status: BTreeMap::new(),
                         tier_count: -1,
+                        pvp_gear: false,
                         skip_reason: Some("Skipped by user.".to_owned()),
                         armory_url: "".to_owned(),
                         queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
@@ -220,6 +226,7 @@ impl PlayerChecker {
                             aotc_status: BTreeMap::new(),
                             buff_status: BTreeMap::new(),
                             tier_count: -1,
+                            pvp_gear: false,
                             skip_reason: Some("Skipped by user.".to_owned()),
                             armory_url: "".to_owned(),
                             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
@@ -252,7 +259,14 @@ impl PlayerChecker {
             buff_status.unwrap()
         };
 
+        let role_name = match player.roleName.as_ref().unwrap_or(&String::new()).as_str() {
+            "Tanks" | "Tank" => "tank".to_string(),
+            "Healers" | "Healer" => "healer".to_string(),
+            _ => player.roleName.as_ref().unwrap_or(&String::new()).to_string().to_lowercase()
+        };
+        
         let tier_count = ArmoryChecker::check_tier_pieces(&data, expansions);
+        let pvp_gear = ArmoryChecker::check_pvp_gear(&data, expansions);
         info!("-------------------- Finished checking player {} -------------------", player.name);
         Some(PlayerData {
             discord_id: player.userId.clone(),
@@ -268,12 +282,13 @@ impl PlayerChecker {
             aotc_status: aotc_report,
             buff_status: buff_status,
             tier_count: tier_count,
+            pvp_gear: pvp_gear,
             skip_reason: None,
             armory_url: url.clone(),
             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
             confirmed: 0,
             class_name: player.className.clone().to_lowercase(),
-            role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase()
+            role_name: role_name
         })
     }
 

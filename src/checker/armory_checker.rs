@@ -680,4 +680,21 @@ impl ArmoryChecker {
         });
         count
     }
+
+    pub fn check_pvp_gear(armory: &ArmoryCharacterResponse, expansions: &config::expansion_config::ExpansionsConfig) -> bool {
+        info!("Checking for PvP bonus");
+        if expansions.latest_expansion.as_ref().unwrap().latest_season.is_none() {
+            return false;
+        }
+
+        let binding = expansions.latest_expansion.clone().unwrap().latest_season.clone().unwrap();
+        let pvp_bonus_ids = binding.pvp_bonus_ids.clone();
+        if pvp_bonus_ids.is_empty() {
+            return false;
+        }
+
+        armory.character.gear.iter().any(|x| {
+            x.1.bonus_list.as_ref().map_or(false, |bonus_list| bonus_list.iter().any(|bonus| pvp_bonus_ids.contains(bonus)))
+        })
+    }
 }
