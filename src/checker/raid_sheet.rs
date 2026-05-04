@@ -194,19 +194,21 @@ impl RaidSheet {
                 let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("player {}", url.clone())));
                 let mut player: Player = Player::default();
                 player.name = url.clone();
-                info!("Looking for player {} in last raid data", url.clone());
-                if let PlayerOnlyCheckType::PlayerFromSheet(discord) = is_player_only.clone() {
-                    for p in last_raid.players.iter() {
-                        if p.discord_id == discord {
-                            player.className = p.class_name.clone();
-                            player.roleName = Some(p.role_name.clone());
-                            player.userId = p.discord_id.clone();
-                            player.status = if p.queued { "queued".to_string() } else { "primary".to_string() };
-                            break;
+
+                if is_player_only != PlayerOnlyCheckType::Player { // from sheet
+                    info!("Looking for player {} in last raid data", url.clone());
+                    if let PlayerOnlyCheckType::PlayerFromSheet(discord) = is_player_only.clone() {
+                        for p in last_raid.players.iter() {
+                            if p.discord_id == discord {
+                                player.className = p.class_name.clone();
+                                player.roleName = Some(p.role_name.clone());
+                                player.userId = p.discord_id.clone();
+                                player.status = if p.queued { "queued".to_string() } else { "primary".to_string() };
+                                break;
+                            }
                         }
                     }
                 }
-                
 
                 let player_data = PlayerChecker::check_player(&player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, None);
                 if player_data.is_some() {

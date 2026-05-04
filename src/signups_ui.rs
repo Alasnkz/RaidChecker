@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Local, TimeZone, Utc};
 use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui, epaint::color};
 use tracing::info;
 use tracing_subscriber::fmt::format;
@@ -53,7 +53,7 @@ impl SignUpsUI {
                     }
                 });      
 
-                let roles = ["Tank", "Healer", "Melee", "Ranged", "DPS"];
+                let roles = ["Tank", "Healer", "Melee", "Ranged", "DPS", "Skipped"];
 
                 let mut primary_players = primary_people.clone();
                 for role in roles.iter() {
@@ -362,7 +362,8 @@ impl SignUpsUI {
     
                     let difficulties = boss.1.2.join(", ");
                     let kill_time: DateTime<Utc> = Utc.timestamp_opt(boss.1.3 as i64, 0).unwrap();
-                    bad_message += format!("\t{} ({}) killed @ {}\n", boss.1.1, difficulties, kill_time.format("%A %H:%M")).as_str();
+                    let kill_time_local: DateTime<Local> = kill_time.with_timezone(&Local);
+                    bad_message += format!("\t{} ({}) killed on {}\n", boss.1.1, difficulties, kill_time_local.format("%A %H:%M")).as_str();
                 }
             }
 
@@ -599,7 +600,8 @@ impl SignUpsUI {
 
                 let difficulties = boss.1.2.join(", ");
                 let kill_time: DateTime<Utc> = Utc.timestamp_opt(boss.1.3 as i64, 0).unwrap();
-                ui.label(format!("\t{} ({}) killed @ {}", boss.1.1, difficulties, kill_time.format("%A %H:%M")));
+                let kill_time_local: DateTime<Local> = kill_time.with_timezone(&Local);
+                ui.label(format!("\t{} ({}) killed on {}", boss.1.1, difficulties, kill_time_local.format("%A %H:%M")));
             }
 
             ui.label("");
@@ -664,25 +666,25 @@ impl SignUpsUI {
             let mut string = String::new();
             match aotc_status {
                 RaidProgressStatus::Account => {
-                    string = format!("{} has {raid_name} AOTC on their account, but not on this character.", player.name.clone());
+                    string = format!("{} has \"{raid_name}\" AOTC on their account, but not on this character.", player.name.clone());
                 },
 
                 RaidProgressStatus::Character => {
-                    string = format!("{} has {raid_name} AOTC on this character.", player.name.clone());
+                    string = format!("{} has \"{raid_name}\" AOTC on this character.", player.name.clone());
                 },
 
                 RaidProgressStatus::CuttingEdge(account, character, heroic_kill) => {
                     if *account == true && *character == false {
                         if *heroic_kill == true {
-                            string = format!("{} has {raid_name} Cutting Edge on their account, but on this character, they have only earned AOTC.", player.name.clone());
+                            string = format!("{} has \"{raid_name}\" Cutting Edge on their account, but on this character, they have only earned AOTC.", player.name.clone());
                         } else {
-                            string = format!("{} has {raid_name} Cutting Edge on their account, but not on this character. This character has not earned AOTC.", player.name.clone());
+                            string = format!("{} has \"{raid_name}\" Cutting Edge on their account, but not on this character. This character has not earned AOTC.", player.name.clone());
                         }
                     } else if *account == true && *character == true {
                         if *heroic_kill == false {
-                            string = format!("{} has {raid_name} Cutting Edge on this character, but has not earned AOTC on this character.", player.name.clone());
+                            string = format!("{} has \"{raid_name}\" Cutting Edge on this character, but has not earned AOTC on this character.", player.name.clone());
                         } else {
-                            string = format!("{} has {raid_name} Cutting Edge on this character.", player.name.clone());
+                            string = format!("{} has \"{raid_name}\" Cutting Edge on this character.", player.name.clone());
                         }
                         
                     }
@@ -690,22 +692,22 @@ impl SignUpsUI {
 
                 RaidProgressStatus::EndBossKilled(killed, heroic, mythic) => {
                     if *killed == false {
-                        string = format!("{} has not killed {raid_name} end boss on this character.", player.name.clone());
+                        string = format!("{} has not killed \"{raid_name}\" end boss on this character.", player.name.clone());
                     } else {
                         string = if *mythic {
                             if *heroic {
-                                format!("{} has killed Mythic {raid_name} end boss on this character", player.name.clone())
+                                format!("{} has killed Mythic \"{raid_name}\" end boss on this character", player.name.clone())
                             } else {
-                                format!("{} has killed Mythic {raid_name} end boss on this character, but has not done so on Heroic.", player.name.clone())
+                                format!("{} has killed Mythic \"{raid_name}\" end boss on this character, but has not done so on Heroic.", player.name.clone())
                             }
                         } else {
-                            format!("{} has killed Heroic {raid_name} end boss on this character.", player.name.clone())
+                            format!("{} has killed Heroic \"{raid_name}\" end boss on this character.", player.name.clone())
                         }
                     }
                 },
 
                 RaidProgressStatus::None => {
-                    string = format!("{} does not have {raid_name} AOTC.", player.name.clone());
+                    string = format!("{} does not have \"{raid_name}\" AOTC.", player.name.clone());
                 },
 
                 RaidProgressStatus::Skipped => {

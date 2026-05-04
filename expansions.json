@@ -1,6 +1,6 @@
 {
   "rhcu_version": "2.0.5",
-  "modified": 1777300241,
+  "modified": 1777937997,
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
@@ -766,7 +766,7 @@
                 "Chimaerus, the Undreamt God"
               ],
 
-              "achievement": {
+              "achievements": {
                 "aotc": 61491,
                 "ce": 61492
               }

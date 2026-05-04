@@ -15,15 +15,15 @@ fn converted_name_correct_realm(ourl: String, realms: &RealmJson) -> String {
     info!("Converting name to correct realm slug: {}", ourl);
     let mut url = ourl.to_lowercase();
     let realm_name = url.split_once("/").unwrap().0;
-    for realm in realms.realms.iter() {
-        let score = jaro_winkler(&realm.name, &realm_name);
-        if score >= 0.9 || url.contains(&realm.name) {
-            if realm.name != realm_name {
-                info!("Correcting {} to {} (0.9 threshold)", realm_name, realm.name);
-            }
-            url = url.replace(&realm_name, &realm.slug);
-            break;
-        }
+
+    let highest_realm = realms.realms.iter().map(|realm| {
+        let score = jaro_winkler(&realm.name.to_lowercase(), &realm_name);
+        (realm.slug.clone(), score)
+    }).max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
+
+    if !highest_realm.0.is_empty() {
+        info!("Realm match: {} with score {}", highest_realm.0, highest_realm.1);
+        url = url.replace(&realm_name, &highest_realm.0);
     }
     return url;
 }
@@ -113,6 +113,12 @@ impl PlayerChecker {
 
         let max_level = expansions.latest_expansion.as_ref().unwrap().max_lvl;
 
+        let role_name = match player.roleName.as_ref().unwrap_or(&String::new()).as_str() {
+            "Tanks" | "Tank" => "tank".to_string(),
+            "Healers" | "Healer" => "healer".to_string(),
+            _ => player.roleName.as_ref().unwrap_or(&String::new()).to_string().to_lowercase()
+        };
+
         // Check to see if the character's character is a real one.
         let processed_name = process_name(&player.name);
         let is_some = processed_name.is_some();
@@ -154,7 +160,7 @@ impl PlayerChecker {
                             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
                             confirmed: 0,
                             class_name: player.className.clone().to_lowercase(),
-                            role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase()
+                            role_name: role_name
                         });
                     },
 
@@ -193,7 +199,7 @@ impl PlayerChecker {
                         queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
                         confirmed: 0,
                         class_name: player.className.clone().to_lowercase(),
-                        role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase()
+                        role_name: role_name
                     });
                 },
 
@@ -232,7 +238,7 @@ impl PlayerChecker {
                             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
                             confirmed: 0,
                             class_name: player.className.clone().to_lowercase(),
-                            role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase()
+                            role_name: role_name
                         });
                     }
                     _ => return None
