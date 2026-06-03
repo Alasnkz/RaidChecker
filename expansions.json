@@ -1,6 +1,6 @@
 {
   "rhcu_version": "2.0.5",
-  "modified": 1777937997,
+  "modified": 1780529603,
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
@@ -805,7 +805,7 @@
             },
 
             {
-              "release_time": 9999999999,
+              "release_time": 1781665200,
               "identifier": "Sporefall",
               "difficulty": [
                 {
@@ -827,7 +827,7 @@
               ],
               "id": 3,
               "boss_names": [
-                "Unknown Boss Name"
+                "Rotmire"
               ]
             }
           ],
@@ -849,7 +849,7 @@
           "pvp_bonus_ids": [
             13447, 13448, 13449
           ],
-          "max_ilvl": 289
+          "max_ilvl": 298
         }
       ]
     },

@@ -497,8 +497,10 @@ impl SignUpsUI {
 
                 if settings.regulars.as_ref().unwrap().get(&player.discord_id).is_some() {
                     settings.regulars.as_mut().unwrap().remove(&player.discord_id);
+                    settings.save_mut();
                 } else {
                     settings.regulars.as_mut().unwrap().insert(player.discord_id.clone(), player.name.clone());
+                    settings.save_mut();
                 }
             }
         });
