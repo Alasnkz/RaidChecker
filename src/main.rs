@@ -9,6 +9,7 @@ use config::{expansion_config::ExpansionsConfig, settings::Settings};
 use egui::{TopBottomPanel, Visuals, Window};
 pub mod config;
 pub mod checker;
+use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 use signups_ui::SignUpsUI;
 pub mod signups_ui;
 pub mod expansion_update;
@@ -82,7 +83,12 @@ struct RaidHelperCheckerApp {
     win_title_change: bool,
 
     ask_json_update: bool,
+    ask_json_update_changes: String,
+
     ask_update: bool,
+    ask_update_changes: String,
+
+    cache: CommonMarkCache,
 }
 
 impl Default for RaidHelperCheckerApp {
@@ -104,17 +110,24 @@ impl Default for RaidHelperCheckerApp {
             win_title: "Raid Checker".to_string(),
             win_title_change: false,
             ask_json_update: false,
+            ask_json_update_changes: String::new(),
             ask_update: false,
+            ask_update_changes: String::new(),
+            cache: CommonMarkCache::default(),
         };
         app.reload_data();
         app.raid_sheet.init_from_last_raid(&app.last_raid);
 
-        if ExpansionUpdateChecker::need_app_update() {
+        let (need_update, changes) = ExpansionUpdateChecker::need_app_update();
+        if  need_update {
             app.ask_update = true;
+            app.ask_update_changes = changes;
         }
 
-        if app.expansion_update_checker.need_expansion_json_update() {
+        let (need_update, changes) = app.expansion_update_checker.need_expansion_json_update();
+        if need_update {
             app.ask_json_update = true;
+            app.ask_json_update_changes = changes;
         }
         app
     }
@@ -214,7 +227,16 @@ impl eframe::App for RaidHelperCheckerApp {
             Window::new("Update available")
                 .show(ctx, |ui| {
                     ui.label("An update to Raid Checker is available. Clicking Download will bring you to the latest release in your browser.");
+
+                    if !self.ask_update_changes.is_empty() {
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            ui.label("Changes:");
+                            CommonMarkViewer::new().show(ui, &mut self.cache, &self.ask_update_changes);
+                        });
+                    }
+
                     ui.horizontal(|ui| {
+                        
                         if ui.button("Download").clicked() {
                             ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl {
                                 url: "https://github.com/Alasnkz/RaidChecker/releases/latest".to_string(),
@@ -233,6 +255,10 @@ impl eframe::App for RaidHelperCheckerApp {
             Window::new("Expansion data update available")
                 .show(ctx, |ui| {
                     ui.label("An update to the expansion data is available.");
+                    if !self.ask_json_update_changes.is_empty() {
+                        ui.label("Changes:");
+                        CommonMarkViewer::new().show(ui, &mut self.cache, &self.ask_json_update_changes);
+                    }
                     ui.horizontal(|ui| {
                         if ui.button("Download").clicked() {
                             if let Err(e) = self.expansion_update_checker.download_expansions_json() {

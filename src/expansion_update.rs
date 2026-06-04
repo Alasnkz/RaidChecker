@@ -7,6 +7,8 @@ use tracing::{info, warn};
 struct MiniJsonData {
     rhcu_version: String,
     modified: u64,
+
+    changes: Option<String>,
 }
 
 const RHCU_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -19,6 +21,7 @@ pub struct ExpansionUpdateChecker {
 struct GitHubRelease {
     tag_name: String,
     html_url: String,
+    body: String,
 }
 
 impl ExpansionUpdateChecker {
@@ -26,23 +29,23 @@ impl ExpansionUpdateChecker {
         Self { remote_data: None }
     }
 
-    pub fn need_expansion_json_update(&mut self) -> bool {
+    pub fn need_expansion_json_update(&mut self) -> (bool, String) {
         info!("Checking for expansion data update...");
         let local_data = match fs::read("expansions.json") {
             Ok(data) => data,
-            Err(_) => return self.fetch_remote_and_store(),
+            Err(_) => return (self.fetch_remote_and_store(), String::new())
         };
         let local_checksum = format!("{:x}", md5::compute(&local_data));
 
         
         if !self.fetch_remote_and_store() {
             warn!("Failed to fetch remote expansions.json data.");
-            return false;
+            return (false, String::new());
         }
 
         if self.remote_data.is_some() == false || self.remote_data.as_ref().unwrap().len() == 0 {
             warn!("Remote expansions.json data is empty or not available.");
-            return false;
+            return (false, String::new());
         }
 
         let remote_data = self.remote_data.as_ref().unwrap();
@@ -53,7 +56,9 @@ impl ExpansionUpdateChecker {
         let remote_version = Version::parse(&data.rhcu_version).unwrap();
         let local_version = Version::parse(RHCU_VERSION).unwrap();
         info!("Local version: {local_version}, Remote version: {remote_version}, Local checksum: {local_checksum}, Remote Checksum: {remote_checksum}");
-        local_checksum != remote_checksum && remote_version.major == local_version.major && data.modified > local_data.modified
+        let new = local_checksum != remote_checksum && remote_version.major == local_version.major && data.modified > local_data.modified;
+
+        (new, local_data.changes.unwrap_or_default())
     }
 
     fn fetch_remote_and_store(&mut self) -> bool {
@@ -89,7 +94,7 @@ impl ExpansionUpdateChecker {
         Ok(())
     }
 
-    pub fn need_app_update() -> bool {
+    pub fn need_app_update() -> (bool, String) {
         info!("Checking for Raid Checker application update...");
         let url = format!(
             "https://api.github.com/repos/Alasnkz/RaidChecker/releases/latest",
@@ -104,14 +109,15 @@ impl ExpansionUpdateChecker {
     
         if !response.status().is_success() {
             warn!("Failed to fetch the latest release information from GitHub: {}", response.status());
-            return false;
+            return (false, String::new());
         }
     
         let data: Option<GitHubRelease> = response.text().ok().and_then(|text| serde_json::from_str(&text).ok());
         if data.is_some() {
-            info!("Current version: {}, Latest version: {}", RHCU_VERSION, data.as_ref().unwrap().tag_name);
-            return Version::parse(&data.unwrap().tag_name).unwrap() > Version::parse(RHCU_VERSION).unwrap();
+            let data = data.unwrap();
+            info!("Current version: {}, Latest version: {}", RHCU_VERSION, data.tag_name);
+            return (Version::parse(&data.tag_name).unwrap() > Version::parse(RHCU_VERSION).unwrap(), data.body);
         }
-        false
+        (false, String::new())
     }
 }

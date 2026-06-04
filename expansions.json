@@ -1,6 +1,7 @@
 {
   "rhcu_version": "2.0.5",
-  "modified": 1780529603,
+  "modified": 1780534557,
+  "changes": "- Added Sporefall raid, will automatically show up when the raid is released.",
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
