@@ -58,7 +58,7 @@ impl ExpansionUpdateChecker {
         info!("Local version: {local_version}, Remote version: {remote_version}, Local checksum: {local_checksum}, Remote Checksum: {remote_checksum}");
         let new = local_checksum != remote_checksum && remote_version.major == local_version.major && data.modified > local_data.modified;
 
-        (new, remote_data.changes.unwrap_or_default())
+        (new, data.changes.unwrap_or_default())
     }
 
     fn fetch_remote_and_store(&mut self) -> bool {
