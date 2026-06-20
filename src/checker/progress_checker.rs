@@ -99,8 +99,7 @@ impl ProgressChecker {
         raids_to_check: &BTreeMap<i32, RequiredRaid>,
         aotc_ce_status: &mut BTreeMap<i32, (String, RaidProgressStatus)>,
     ) {
-        // Map achievements by ID for quick lookup
-        let mut achievement_map = BTreeMap::new();
+        let mut achievement_map: BTreeMap<i32, &super::armory_checker::Achievements> = BTreeMap::new();
         for category in &data.achievement_category.subcategories {
             if category.1.id == "raids" {
                 for achievement in &category.1.achievements {
@@ -118,7 +117,7 @@ impl ProgressChecker {
                 .expect("Raid not found in expansion data");
             let raid_name = raid.identifier.clone();
     
-            let status = if raid.achievements.dependency_id != -1 {
+            let status = if raid.achievements.dependency_id != -1 || (raid.achievements.aotc == 0 && raid.achievements.ce == 0) {
                 let raid_summary = armory.summary.raids.get(raid_id as usize);
                 Self::end_boss_status(raid_summary)
             } else {
@@ -194,6 +193,12 @@ impl ProgressChecker {
 
         let raid = raid.unwrap();
         info!("Checking end boss kill for {}", raid.name);
+
+        let normal_killed = raid.difficulties.get(1)
+            .and_then(|d| d.bosses.last())
+            .map(|b| b.kill_count >= 1)
+            .unwrap_or(false);
+
         let mythic_killed = raid.difficulties.get(3)
             .and_then(|d| d.bosses.last())
             .map(|b| b.kill_count >= 1)
@@ -204,7 +209,7 @@ impl ProgressChecker {
             .map(|b| b.kill_count >= 1)
             .unwrap_or(false);
     
-        RaidProgressStatus::EndBossKilled(heroic_killed || mythic_killed, heroic_killed, mythic_killed)
+        RaidProgressStatus::EndBossKilled(normal_killed || heroic_killed || mythic_killed, heroic_killed, mythic_killed)
     }
 
     fn fill_missing_raids(

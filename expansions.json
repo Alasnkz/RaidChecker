@@ -1,6 +1,6 @@
 {
   "rhcu_version": "2.0.5",
-  "modified": 1780534557,
+  "modified": 1781972510,
   "changes": "- Added Sporefall raid, will automatically show up when the raid is released.",
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
@@ -193,7 +193,7 @@
         },
         {
           "slot": "leg",
-          "sub_slots": [],
+          "sub_slots": ["legs"],
           "enchant_ids": [
             7599,
             7600,
@@ -621,7 +621,7 @@
 
         {
           "slot": "leg",
-          "sub_slots": [],
+          "sub_slots": ["legs"],
           "enchant_ids": [
             7934,
             7935,

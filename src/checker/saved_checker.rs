@@ -41,52 +41,5 @@ impl SavedChecker {
                 }
             }
         }
-
-        /*raid_saved_check
-            .iter()
-            .filter_map(|(&raid_id, required_raid)| {
-                armory.summary.raids.get(raid_id as usize).map(|armory_raid| (armory_raid, required_raid))
-            })
-            .flat_map(|(armory_raid, required_raid)| {
-                let mut killed_bosses_in_raid: BTreeMap<usize, (String, Vec<(String, u64)>)> = BTreeMap::new();
-                for (&difficulty_id, required_difficulty) in &required_raid.difficulty {
-                    if required_difficulty.boss_ids.is_empty() {
-                        continue;
-                    }
-    
-                    if let Some(armory_difficulty) = armory_raid.difficulties.get(difficulty_id as usize) {
-                        for (boss_id, armory_boss) in armory_difficulty.bosses.iter().enumerate() {
-                            if required_difficulty.boss_ids.contains(&(boss_id as i32)) {
-                                if let Some(timestamp) = armory_boss.last_timestamp {
-                                    if timestamp > reset_timestamp {
-                                        let entry = killed_bosses_in_raid
-                                            .entry(boss_id)
-                                            .or_insert_with(|| (armory_boss.name.clone(), Vec::new()));
-                                        entry.1.push((armory_difficulty.name.clone(), timestamp / 1000));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                killed_bosses_in_raid.into_iter().map(move |(_, (boss_name, difficulties))| {
-                    let (diff_names, timestamps): (Vec<_>, Vec<_>) = difficulties.into_iter().unzip();
-                    let diff_str = diff_names.join(", ");
-                    let last_kill_timestamp = timestamps.last().unwrap_or(&0);
-                    let kill_time: DateTime<Utc> = Utc.timestamp_opt(*last_kill_timestamp as i64, 0).unwrap();
-                    
-                    (
-                        armory_raid.name.clone(),
-                        format!(
-                            "{} ({}) @ {}",
-                            boss_name,
-                            diff_str,
-                            kill_time.format("%A %H:%M")
-                        ),
-                    )
-                })
-            })
-        .collect()*/
     }
 }

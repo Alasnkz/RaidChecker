@@ -11,42 +11,42 @@ use crate::config::{self, expansion_config::{Expansion, ExpansionsConfig, ItemDa
 #[allow(dead_code)]
 pub struct ArmoryChecker {}
 
-#[derive(serde::Deserialize, Clone, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 #[allow(dead_code)]
-struct GearEnchantment {
-    enchantment_id: i32
+pub struct GearEnchantment {
+    pub enchantment_id: i32
 }
 
-#[derive(serde::Deserialize, Clone, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 #[allow(dead_code)]
-struct GearInventoryType {
+pub struct GearInventoryType {
     #[serde(alias = "name")]
     _name: String,
     #[serde(alias = "type")]
-    gear_type: String
+    pub gear_type: String
 }
 
-#[derive(serde::Deserialize, Clone, Debug)]
-struct GearItem {
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+pub struct GearItem {
     #[serde(alias = "id")]
-    _id: u64,
+    pub id: u64,
 }
 
-#[derive(serde::Deserialize, Clone, Debug)]
-struct GearSockets {
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
+pub struct GearSockets {
     #[serde(alias = "item")]
-    _item: Option<GearItem>
+    pub item: Option<GearItem>
 }
 
-#[derive(serde::Deserialize, Clone, Debug)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 #[allow(dead_code)]
 pub struct CharacterGear {
-    bonus_list: Option<Vec<i32>>,
-    enchantments: Option<Vec<GearEnchantment>>,
-    id: i32,
-    inventory_type: GearInventoryType,
+    pub bonus_list: Option<Vec<i32>>,
+    pub enchantments: Option<Vec<GearEnchantment>>,
+    pub id: i32,
+    pub inventory_type: GearInventoryType,
     #[serde(alias = "sockets")]
-    sockets: Option<Vec<GearSockets>>
+    pub sockets: Option<Vec<GearSockets>>
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -70,13 +70,13 @@ struct CharacterGearContainer {
 }
 
 
-#[derive(serde::Deserialize, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct ArmoryTimestamp {
     #[serde(alias = "epoch")]
-    _epoch: i64,
+    pub epoch: i64,
 }
 
-#[derive(serde::Deserialize, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 #[allow(dead_code)]
 pub struct ArmoryCharacter {
     #[serde(alias = "averageItemLevel")]
@@ -85,6 +85,17 @@ pub struct ArmoryCharacter {
     #[serde(alias = "lastUpdatedTimestamp")]
     pub last_updated_timestamp: ArmoryTimestamp,
     pub level: u8,
+}
+
+impl Default for ArmoryCharacter {
+    fn default() -> Self {
+        ArmoryCharacter {
+            average_item_level: 0,
+            gear: HashMap::new(),
+            last_updated_timestamp: ArmoryTimestamp { epoch: 0 },
+            level: 0,
+        }
+    }
 }
 
 #[derive(serde::Deserialize,Clone,Debug,PartialEq, Eq, Hash)]
@@ -270,7 +281,6 @@ impl ArmoryChecker {
         if armory.summary.raids.is_empty() {
             warn!("No raid data found for character");
             return;
-            //return unkilled_bosses;
         }
 
         for raid in &armory.summary.raids {
@@ -291,63 +301,10 @@ impl ArmoryChecker {
                 }
             }
         }
-
-        /*
-        for check_raid_ids in settings.required_raids.iter() {
-            let mut seen = HashSet::new();
-            let mut unkilled_raid_bosses = BTreeMap::new();
-            let raid_check: Option<&ArmoryRaids> = armory.summary.raids.get(*check_raid_ids.0 as usize);
-            if raid_check.is_none() {
-                warn!("No raid data found for raid ID: {}", check_raid_ids.0);
-                for check_raid_difficulty in check_raid_ids.1.difficulty.iter() {
-                    if check_raid_difficulty.1.boss_ids.is_empty() {
-                        continue;
-                    }
-
-                    todo!("Handle missing raid data stuff.");
-                }
-                continue;
-            }
-            let raid_check = raid_check.unwrap();
-            let unique_difficulties: Vec<_> = raid_check.difficulties
-                .iter()
-                .filter(|x| seen.insert(*x))
-                .cloned()
-                .collect();
-            
-
-            for check_raid_difficulty in check_raid_ids.1.difficulty.iter() {
-                let difficulty_option = unique_difficulties.get(*check_raid_difficulty.0 as usize);
-                if check_raid_difficulty.1.boss_ids.is_empty() || difficulty_option.is_none() {
-                    continue;
-                }
-                let raid_difficulty = difficulty_option.unwrap();
-                let mut boss_id = 0;
-                for boss in raid_difficulty.bosses.iter() {
-                    if check_raid_difficulty.1.boss_ids.iter().find(|x| **x == boss_id).is_some() {
-                        if boss.kill_count == 0 {
-                            if unkilled_raid_bosses.contains_key(&boss_id) {
-                                let existing: &mut (String, Vec<String>) = unkilled_raid_bosses.get_mut(&boss_id).unwrap();
-                                existing.1.push(raid_difficulty.name.clone());
-                            } else {
-                                unkilled_raid_bosses.insert(boss_id, (boss.name.clone(), vec![raid_difficulty.name.clone()]));
-                            }                            
-                        }
-                    }
-                    boss_id += 1;
-                }
-            }
-            for (_, (boss_name, difficulties)) in unkilled_raid_bosses.iter() {
-                let difficulty_str = difficulties.join(", ");
-                unkilled_bosses.push((raid_check.name.clone(), format!("{} ({})", boss_name, difficulty_str)));
-            }
-        }
-        info!("Unkilled bosses found {:?}", unkilled_bosses);
-        unkilled_bosses*/
     }
 
     pub fn check_gear(armory: &ArmoryCharacterResponse, settings: &config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig) -> (Vec<String>, Vec<String>, Vec<String>, i32) {
-        info!("--- GEAR CHECK ---");
+        /*info!("--- GEAR CHECK ---");
         let mut enchant_vec = Vec::new();
         let mut socket_vec = Vec::new();
         let mut special_item = Vec::new();
@@ -418,283 +375,8 @@ impl ArmoryChecker {
             }
         }
         info!("--- END GEAR CHECK ---");
-        (enchant_vec, socket_vec, special_item, embelishments)
+        (enchant_vec, socket_vec, special_item, embelishments)*/
+        (Vec::new(), Vec::new(), Vec::new(), 0)
     }
 
-    fn check_enchant_slot(expansion: &Expansion, gear: &CharacterGear, item: &ItemData, settings: &Settings, expansions: &config::expansion_config::ExpansionsConfig) -> String {
-        info!("Checking enchant slot: {}", item.slot);
-        let binding = settings.slots.as_array();
-        let item_options_opt: Option<&(SlotSetting, &str)> = binding.iter().find(|x| {
-            x.1 == item.slot
-        });
-
-        let seasonal_item = if expansion.latest_season.is_none() {
-            None 
-        } else {
-            expansion.latest_season.as_ref().unwrap().seasonal_slot_data.iter().find(|x| {
-                x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
-            })
-        };
-
-        let agnostic_item = expansions.agnostic_slot_data.iter().find(|x| {
-            x.slot == item.slot || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
-        });
-
-        if let Some(item_options) = item_options_opt {
-            if item_options.0.require_slot == true && (!item.enchant_ids.is_empty() || (seasonal_item.is_some() && !seasonal_item.unwrap().enchant_ids.is_empty())) 
-                && (gear.enchantments.is_none() || gear.enchantments.as_ref().unwrap().is_empty()) {
-                return gear.inventory_type.clone().gear_type.to_lowercase() + " is missing an enchant";
-            }
-    
-            if gear.enchantments.is_none() || gear.enchantments.clone().unwrap().is_empty() {
-                return String::default();
-            }
-
-            let enchant = gear.enchantments.clone().unwrap();
-            if item_options.0.require_latest == true {
-                if seasonal_item.is_some() && !seasonal_item.unwrap().enchant_ids.is_empty() {
-                    info!("Checking seasonal enchant for slot: {}", item.slot);
-                    let seasonal_enchant_ids: Vec<i32> = seasonal_item.clone().unwrap().enchant_ids.clone();
-                    let seasonal_lesser_enchant_ids = seasonal_item.clone().unwrap().lesser_enchant_ids.clone();
-
-                    if item_options.0.require_greater == true {
-                        if enchant.iter().find(|x| seasonal_lesser_enchant_ids.iter().find(|y| x.enchantment_id == **y).is_some()).is_some() {
-                            return format!("{} is enchanted with a \"lesser\" version of an enchant", gear.inventory_type.clone().gear_type.to_lowercase());
-                        }
-                    }
-
-                    if enchant.iter().find(|x| seasonal_enchant_ids.iter().find(|y| x.enchantment_id == **y).is_some()).is_some() {
-                        return String::default();
-                    } else {
-                        return format!("{} is not enchanted with a \"{} {}\" enchant", gear.inventory_type.clone().gear_type.to_lowercase(), expansion.identifier, expansion.latest_season.clone().unwrap().seasonal_identifier);
-                    }
-                }
-
-                if enchant.iter().find(|x| item.enchant_ids.iter().find(|y| x.enchantment_id == **y ).is_some()).is_some() || 
-                    (agnostic_item.is_some() && agnostic_item.unwrap().enchant_ids.iter().find(|y| enchant.iter().find(|x| x.enchantment_id == **y).is_some()).is_some()) {
-                    
-                } else if !item.enchant_ids.is_empty() {
-                    return format!("{} is not enchanted with a \"{}\" enchant", gear.inventory_type.clone().gear_type.to_lowercase(), expansion.name);
-                }
-            }
-
-            if item_options.0.require_greater == true {
-                if enchant.iter().find(|x| item.lesser_enchant_ids.iter().find(|y| x.enchantment_id == **y).is_some()).is_some() ||
-                    (agnostic_item.is_some() && agnostic_item.unwrap().lesser_enchant_ids.iter().find(|y| enchant.iter().find(|x| x.enchantment_id == **y).is_some()).is_some()) {
-                    return format!("{} is enchanted with a \"lesser\" version of an enchant", gear.inventory_type.clone().gear_type.to_lowercase());
-                }
-            }
-        }
-        
-        return String::default();
-    }
-    
-    fn gear_socket_check(gear: &CharacterGear, slot: &ItemData, options: &(SlotSetting, &str)) -> String {
-        let required_sockets = options.0.require_sockets;
-        let mut bad_str = "".to_string();
-        let sockets = gear.sockets.as_ref().map_or(0, |s| s.len()) as i32;
-        let slot_name = gear.inventory_type.clone().gear_type.to_lowercase();
-
-        if required_sockets > sockets {
-            bad_str = format!("{} is missing {} socket{}", slot_name, required_sockets - sockets, if required_sockets - sockets > 1 { "s" } else { "" });
-        }
-        if gear.sockets.is_some() {    
-            let count = gear.sockets.iter().flatten().filter(|s| s._item.is_some()).count() as i32;
-            if count < sockets && options.0.warn_if_socket_unfilled == true {
-                if bad_str != "" {
-                    bad_str += "\n\t";
-                }
-                bad_str = format!("{}{} has {} socket{} that are not filled with a gem", bad_str, slot_name, sockets - count, if sockets - count > 1 { "s" } else { "" });
-            }
-        }
-
-        if options.0.require_greater_socket == true {
-            if gear.sockets.is_some() && gear.sockets.clone().unwrap().iter().find(|x| x._item.is_some() && slot.greater_socket_item.iter().find(|y| x._item.as_ref().unwrap()._id as i32 == **y).is_some()).is_some() {
-                return bad_str;
-            } else {
-                if bad_str != "" {
-                    bad_str += "\n\t";
-                }
-                return format!("{} does not have a greater gem socketed!", slot_name);
-            }
-        }
-        return bad_str;
-    }
-
-    fn check_gear_socket(expansions: &ExpansionsConfig, gear: &CharacterGear, item: &ItemData, settings: &Settings) -> String {
-        info!("Checking gear socket for slot: {}", item.slot);
-
-        if expansions.latest_expansion.is_none() {
-            error!("Latest expansion is referencing nothing!");
-            return String::default();
-        }
-
-        let binding = settings.slots.as_array();
-        let enchant_options_opt = binding.iter().find(|x| {
-            x.1 == item.slot
-        });
-
-        let expansion = expansions.latest_expansion.as_ref().unwrap();
-
-        let agnostic_slot_opt = expansions.agnostic_slot_data.iter().find(|x| {
-            x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
-        });
-
-        let expansion_slot_opt = expansion.slot_data.iter().find(|x| {
-            x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
-        });
-
-        let seasonal_slot_opt = if expansion.latest_season.is_none() {
-            None 
-        } else {
-            expansion.latest_season.as_ref().unwrap().seasonal_slot_data.iter().find(|x| {
-                x.slot == item.slot  || x.sub_slots.iter().find(|y| **y == item.slot).is_some()
-            })
-        };
-
-        if let Some(slot_options) = enchant_options_opt {
-            if let Some(seasonal_item) = seasonal_slot_opt {
-                info!("Checking socket for seasonal slot: {}", item.slot);
-                if seasonal_item.has_socket == true {
-                    let seasonal_sockets = seasonal_item.max_sockets;
-                    if seasonal_sockets > 0 {
-                        let bad_retval = Self::gear_socket_check(gear, seasonal_item, slot_options);
-                        if bad_retval.len() > 0 {
-                            return bad_retval;
-                        }
-                    }
-                }
-            }
-
-            if let Some(expansion_slot) = expansion_slot_opt {
-                info!("Checking socket status for expansion slot: {}", item.slot);
-                if expansion_slot.has_socket == true {
-                    let sockets = expansion_slot.max_sockets;
-                    if sockets > 0 {
-                        let bad_retval = Self::gear_socket_check(gear, expansion_slot, slot_options);
-                        if bad_retval.len() > 0 {
-                            return bad_retval;
-                        }
-                    }
-                }
-            }
-
-            if let Some(agnostic_slot) = agnostic_slot_opt {
-                info!("Checking socket status for agnostic slot: {}", item.slot);
-                if agnostic_slot.has_socket == true {
-                    let sockets = agnostic_slot.max_sockets;
-                    if sockets > 0 {
-                        let bad_retval = Self::gear_socket_check(gear, agnostic_slot, slot_options);
-                        if bad_retval.len() > 0 {
-                            return bad_retval;
-                        }
-                    }
-                }
-            }
-
-            if item.has_socket == true {
-                return Self::gear_socket_check(gear, item, slot_options);
-            }  
-        }
-        
-        return String::default();
-    }
-
-    fn check_special_item(
-        expansions: &ExpansionsConfig,
-        gear: &CharacterGear,
-        item: &ItemData,
-        settings: &Settings
-    ) -> String {
-        info!("Checking special item for slot: {}", item.slot);
-    
-        let binding = settings.slots.as_array();
-        let Some((slot_setting, _)) = binding.iter().find(|(_, slot)| *slot == item.slot) else {
-            return String::default();
-        };
-    
-        if !slot_setting.require_special_item {
-            return String::default();
-        }
-    
-        let slot_matches = |data: &&ItemData| data.slot == item.slot || data.sub_slots.contains(&item.slot);
-        let slot_name = gear.inventory_type.clone().gear_type.to_lowercase();
-    
-        let perform_check = |item_ids: &[i32], item_type: &str, log_message: &str| {
-            if item_ids.is_empty() {
-                return None;
-            }
-            
-            info!("{}", log_message);
-            if item_ids.contains(&gear.id) {
-                Some(String::default())
-            } else {
-                Some(format!("{} does not have a {} special item!", slot_name, item_type)) // Failure.
-            }
-        };
-    
-        if let Some(expansion) = &expansions.latest_expansion {
-            if let Some(season) = &expansion.latest_season {
-                if let Some(seasonal_item) = season.seasonal_slot_data.iter().find(slot_matches) {
-                    if let Some(result) = perform_check(&seasonal_item.special_item_id, "seasonal", &format!("Checking seasonal item for slot: {}", item.slot)) {
-                        return result;
-                    }
-                }
-            }
-        }
-    
-        if let Some(expansion) = &expansions.latest_expansion {
-            if let Some(expansion_item) = expansion.slot_data.iter().find(slot_matches) {
-                if let Some(result) = perform_check(&expansion_item.special_item_id, "expansion", &format!("Checking special expansion item for slot: {}", item.slot)) {
-                    return result;
-                }
-            }
-        }
-    
-        if let Some(agnostic_item) = expansions.agnostic_slot_data.iter().find(slot_matches) {
-            if let Some(result) = perform_check(&agnostic_item.special_item_id, "agnostic", &format!("Checking special agnostic item for slot: {}", item.slot)) {
-                return result;
-            }
-        }
-
-        String::default()
-    }   
-
-    pub fn check_tier_pieces(armory: &ArmoryCharacterResponse, expansions: &config::expansion_config::ExpansionsConfig) -> i32 {
-        info!("Checking for tier pieces");
-        if expansions.latest_expansion.as_ref().unwrap().latest_season.is_none() {
-            return -1;
-        }
-        
-        let mut count = 0;
-        let binding = expansions.latest_expansion.clone().unwrap().latest_season.clone().unwrap();
-        let tier_sets = binding.tier_gear_ids.clone();
-        if tier_sets.is_empty() {
-            return -1;
-        }
-
-        armory.character.gear.iter().for_each(|x| {
-            if tier_sets.iter().any(|y| x.1.id == *y) {
-                count += 1;
-            }
-        });
-        count
-    }
-
-    pub fn check_pvp_gear(armory: &ArmoryCharacterResponse, expansions: &config::expansion_config::ExpansionsConfig) -> bool {
-        info!("Checking for PvP bonus");
-        if expansions.latest_expansion.as_ref().unwrap().latest_season.is_none() {
-            return false;
-        }
-
-        let binding = expansions.latest_expansion.clone().unwrap().latest_season.clone().unwrap();
-        let pvp_bonus_ids = binding.pvp_bonus_ids.clone();
-        if pvp_bonus_ids.is_empty() {
-            return false;
-        }
-
-        armory.character.gear.iter().any(|x| {
-            x.1.bonus_list.as_ref().map_or(false, |bonus_list| bonus_list.iter().any(|bonus| pvp_bonus_ids.contains(bonus)))
-        })
-    }
 }

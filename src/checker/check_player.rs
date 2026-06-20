@@ -5,7 +5,7 @@ use reqwest::blocking::Client;
 use scraper::{Html, Selector};
 use tracing::info;
 use strsim::jaro_winkler;
-use crate::{checker::{armory_checker::{PlayerRaidData}, buff_checker::BuffChecker, progress_checker::ProgressChecker, saved_checker::SavedChecker}, config::{self, realms::RealmJson, settings::RequiredRaid}};
+use crate::{checker::{armory_checker::{ArmoryCharacter, PlayerRaidData}, buff_checker::BuffChecker, progress_checker::ProgressChecker, saved_checker::SavedChecker}, config::{self, realms::RealmJson, settings::RequiredRaid}};
 
 use super::{armory_checker::{RaidProgressStatus, ArmoryChecker}, raid_sheet::{Player, RaidHelperCheckerStatus, RaidHelperUIStatus}};
 
@@ -62,6 +62,10 @@ pub fn slug_to_name(slug: &str, realms: &RealmJson) -> Option<String> {
     None
 }
 
+fn default_state() -> i32 {
+    -1
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct PlayerData {
     pub discord_id: String,
@@ -70,6 +74,7 @@ pub struct PlayerData {
     pub bad_gear: Vec<String>,
     pub bad_socket: Vec<String>,
     pub bad_special_item: Vec<String>,
+    pub character: ArmoryCharacter,
     pub num_embelishments: i32,
     pub raid_data: BTreeMap<usize, PlayerRaidData>,
     pub ilvl: i32,
@@ -86,7 +91,10 @@ pub struct PlayerData {
     #[serde(default)]
     pub class_name: String,
     #[serde(default)]
-    pub role_name: String
+    pub role_name: String,
+
+    #[serde(default="default_state")]
+    pub dirty_state: i32
 }
 
 enum SearchPromptResult {
@@ -147,6 +155,7 @@ impl PlayerChecker {
                             bad_gear: Vec::new(),
                             bad_socket: Vec::new(),
                             bad_special_item: Vec::new(),
+                            character: ArmoryCharacter::default(),
                             num_embelishments: -1,
                             ilvl: 0,
                             lvl: 0,
@@ -160,7 +169,8 @@ impl PlayerChecker {
                             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
                             confirmed: 0,
                             class_name: player.className.clone().to_lowercase(),
-                            role_name: role_name
+                            role_name: role_name,
+                            dirty_state: -1
                         });
                     },
 
@@ -186,6 +196,7 @@ impl PlayerChecker {
                         bad_gear: Vec::new(),
                         bad_socket: Vec::new(),
                         bad_special_item: Vec::new(),
+                        character: ArmoryCharacter::default(),
                         num_embelishments: -1,
                         ilvl: 0,
                         lvl: 0,
@@ -199,7 +210,8 @@ impl PlayerChecker {
                         queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
                         confirmed: 0,
                         class_name: player.className.clone().to_lowercase(),
-                        role_name: role_name
+                        role_name: role_name,
+                        dirty_state: -1
                     });
                 },
 
@@ -225,6 +237,7 @@ impl PlayerChecker {
                             bad_gear: Vec::new(),
                             bad_socket: Vec::new(),
                             bad_special_item: Vec::new(),
+                            character: ArmoryCharacter::default(),
                             num_embelishments: -1,
                             ilvl: 0,
                             lvl: 0,
@@ -238,7 +251,8 @@ impl PlayerChecker {
                             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
                             confirmed: 0,
                             class_name: player.className.clone().to_lowercase(),
-                            role_name: role_name
+                            role_name: role_name,
+                            dirty_state: -1
                         });
                     }
                     _ => return None
@@ -252,7 +266,6 @@ impl PlayerChecker {
         let mut raid_data: BTreeMap<usize, PlayerRaidData> = BTreeMap::new();
         let data = armory_data.unwrap();
         ArmoryChecker::check_raid_boss_kills(&data, &mut raid_data);
-        let (bad_enchant_gear, bad_socket_gear, bad_special_item, embelishments) = ArmoryChecker::check_gear(&data, settings, expansions);
         info!("Character has {} ilvl", data.character.average_item_level);
         let ilvl = data.character.average_item_level;
         SavedChecker::check_bosses(&data, &mut raid_data);
@@ -271,30 +284,30 @@ impl PlayerChecker {
             _ => player.roleName.as_ref().unwrap_or(&String::new()).to_string().to_lowercase()
         };
         
-        let tier_count = ArmoryChecker::check_tier_pieces(&data, expansions);
-        let pvp_gear = ArmoryChecker::check_pvp_gear(&data, expansions);
         info!("-------------------- Finished checking player {} -------------------", player.name);
         Some(PlayerData {
             discord_id: player.userId.clone(),
             name: player.name.clone(),
             status: player.status.clone(),
-            bad_gear: bad_enchant_gear,
-            bad_socket: bad_socket_gear,
-            bad_special_item: bad_special_item,
-            num_embelishments: embelishments,
+            bad_gear: Vec::new(),
+            bad_socket: Vec::new(),
+            bad_special_item: Vec::new(),
+            character: data.character.clone(),
+            num_embelishments: 0,
             ilvl: ilvl,
             lvl: data.character.level,
             raid_data: raid_data,
             aotc_status: aotc_report,
             buff_status: buff_status,
-            tier_count: tier_count,
-            pvp_gear: pvp_gear,
+            tier_count: 0,
+            pvp_gear: false,
             skip_reason: None,
             armory_url: url.clone(),
             queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
             confirmed: 0,
             class_name: player.className.clone().to_lowercase(),
-            role_name: role_name
+            role_name: role_name,
+            dirty_state: -1
         })
     }
 

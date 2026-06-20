@@ -125,6 +125,8 @@ impl SettingsUi {
             max_ilvl = 1000;
         }
 
+        let mut changed = false;
+
         egui::Window::new("Raid Item Requirements")
             .collapsible(false)
             .resizable(false)
@@ -210,24 +212,26 @@ impl SettingsUi {
 
                             ui.collapsing(item.1, |ui| {
                                 if has_enchant {
-                                    ui.checkbox(&mut item.0.require_slot, "Require enchantment in slot");
-                                    ui.checkbox(&mut item.0.require_latest, "Require recent enchantment").on_hover_text("Checks to see if the enchantment is from the most recent patch (where applicable, if not it will check the latest expansion).");
+                                    changed = changed || ui.checkbox(&mut item.0.require_slot, "Require enchantment in slot").changed();
+                                    changed = changed || ui.checkbox(&mut item.0.require_latest, "Require recent enchantment").on_hover_text("Checks to see if the enchantment is from the most recent patch (where applicable, if not it will check the latest expansion).").changed();
                                 }
 
                                 if has_enchant && has_lesser_enchants {
-                                    ui.checkbox(&mut item.0.require_greater, "Require greater enchantment").on_hover_text("Checks to see if the enchantment is a greater version of the enchantment, notable only for corruptions (TWW S2).");
+                                    changed = changed || ui.checkbox(&mut item.0.require_greater, "Require greater enchantment").on_hover_text("Checks to see if the enchantment is a greater version of the enchantment, notable only for corruptions (TWW S2).").changed();
                                 }
 
                                 if has_special_item {
-                                    ui.checkbox(&mut item.0.require_special_item, "Require special item").on_hover_text("Require a special item i.e. DISC belt");
+                                    changed = changed || ui.checkbox(&mut item.0.require_special_item, "Require special item").on_hover_text("Require a special item i.e. DISC belt").changed();
                                 }
                                 
                                 if has_socket {
-                                    ui.add(egui::Slider::new(&mut item.0.require_sockets, 0..=max_sockets).text("Sockets required"));
+                                    let mut click = false;
+                                    changed = changed || ui.add(egui::Slider::new(&mut item.0.require_sockets, 0..=max_sockets).text("Sockets required")).changed();
                                     if has_greater_socket_item {
-                                        ui.checkbox(&mut item.0.require_greater_socket, "Require greater socket item").on_hover_text("Checks to see if the item has a \"greater\" gem/fibre socketed into it, notable for TWW S3 Reshii Wraps fibers.");
+                                        changed = changed || ui.checkbox(&mut item.0.require_greater_socket, "Require greater socket item").on_hover_text("Checks to see if the item has a \"greater\" gem/fibre socketed into it, notable for TWW S3 Reshii Wraps fibers.").changed();
                                     }
-                                    ui.checkbox(&mut item.0.warn_if_socket_unfilled, "Warn if a socket is unfilled").on_hover_text("Warn if a socket is unfilled, no matter if they have met the socket requirement.");
+                                    changed = changed || ui.checkbox(&mut item.0.warn_if_socket_unfilled, "Warn if a socket is unfilled").on_hover_text("Warn if a socket is unfilled, no matter if they have met the socket requirement.").changed();
+                                    
                                 }
                                 
                             });
@@ -239,6 +243,10 @@ impl SettingsUi {
                 }
             });
 
+        if changed {
+            settings.dirty_state = settings.dirty_state + 1;
+        }
+        
         return close;
     }
 
@@ -326,12 +334,14 @@ impl SettingsUi {
                             for i in 0..expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.len() {
                                 raid_difficulty.boss_ids.push(i as i32);
                             }
+                            settings.dirty_state = settings.dirty_state + 1;
                         };
     
                         if ui.button("Disable all bosses").on_hover_ui(|ui| {
                             ui.label("Disable all bosses for this raid.");
                         }).clicked() {
                             raid_difficulty.boss_ids.clear();
+                            settings.dirty_state = settings.dirty_state + 1;
                         };
                     });
 
@@ -344,6 +354,7 @@ impl SettingsUi {
                             } else {
                                 raid_difficulty.boss_ids.retain(|&x| x != bid);
                             }
+                            settings.dirty_state = settings.dirty_state + 1;
                         }
                         bid += 1;
                     }
@@ -439,12 +450,14 @@ impl SettingsUi {
                             for i in 0..expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).boss_names.len() {
                                 raid_difficulty.boss_ids.push(i as i32);
                             }
+                            settings.dirty_state = settings.dirty_state + 1;
                         };
     
                         if ui.button("Disable all bosses").on_hover_ui(|ui| {
                             ui.label("Disable all bosses for this raid.");
                         }).clicked() {
                             raid_difficulty.boss_ids.clear();
+                            settings.dirty_state = settings.dirty_state + 1;
                         };
                     });
 
@@ -457,6 +470,7 @@ impl SettingsUi {
                             } else {
                                 raid_difficulty.boss_ids.retain(|&x| x != bid);
                             }
+                            settings.dirty_state = settings.dirty_state + 1;
                         }
                         bid += 1;
                     }
@@ -529,6 +543,7 @@ impl SettingsUi {
                             (skip_colour[2] * 255.0).round() as u8,
                             255,
                         ]);
+                        settings.dirty_state = settings.dirty_state + 1;
                     }
                 });
                 
@@ -549,6 +564,7 @@ impl SettingsUi {
                             (ilvl_colour[2] * 255.0).round() as u8,
                             255,
                         ]);
+                        settings.dirty_state = settings.dirty_state + 1;
                     }
                 });
 
@@ -569,6 +585,7 @@ impl SettingsUi {
                             (saved_colour[2] * 255.0).round() as u8,
                             255,
                         ]);
+                        settings.dirty_state = settings.dirty_state + 1;
                     }
                 });
 
@@ -589,6 +606,7 @@ impl SettingsUi {
                             (unkilled_colour[2] * 255.0).round() as u8,
                             255,
                         ]);
+                        settings.dirty_state = settings.dirty_state + 1;
                     }
                 });
 
@@ -609,6 +627,7 @@ impl SettingsUi {
                             (bad_gear_colour[2] * 255.0).round() as u8,
                             255,
                         ]);
+                        settings.dirty_state = settings.dirty_state + 1;
                     }
                 });
 
@@ -629,6 +648,7 @@ impl SettingsUi {
                             (buff_colour[2] * 255.0).round() as u8,
                             255,
                         ]);
+                        settings.dirty_state = settings.dirty_state + 1;
                     }
                 });
                 
@@ -649,6 +669,7 @@ impl SettingsUi {
                             (buff_colour[2] * 255.0).round() as u8,
                             255,
                         ]);
+                        settings.dirty_state = settings.dirty_state + 1;
                     }
                 });
 
@@ -669,6 +690,7 @@ impl SettingsUi {
                             (buff_colour[2] * 255.0).round() as u8,
                             255,
                         ]);
+                        settings.dirty_state = settings.dirty_state + 1;
                     }
                 });
 
@@ -689,6 +711,7 @@ impl SettingsUi {
                             (buff_colour[2] * 255.0).round() as u8,
                             255,
                         ]);
+                        settings.dirty_state = settings.dirty_state + 1;
                     }
                 });
 

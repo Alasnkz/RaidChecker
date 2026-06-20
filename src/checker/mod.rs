@@ -5,3 +5,4 @@ pub mod armory_checker;
 pub mod progress_checker;
 pub mod buff_checker;
 pub mod saved_checker;
+pub mod gear_checker;

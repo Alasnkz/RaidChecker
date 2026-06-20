@@ -5,7 +5,7 @@ use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui, epaint::colo
 use tracing::info;
 use tracing_subscriber::fmt::format;
 
-use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_UNCONFIRMED, RaidSheetType}, saved_checker::SavedChecker}, config::{self, expansion_config::ExpansionsConfig, settings::PriorityChecks}};
+use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, gear_checker::GearChecker, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_UNCONFIRMED, RaidSheetType}, saved_checker::SavedChecker}, config::{self, expansion_config::ExpansionsConfig, settings::PriorityChecks}};
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct BossKey {
@@ -26,8 +26,8 @@ impl Default for SignUpsUI {
 }
 
 impl SignUpsUI {
-    pub fn draw_signups(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, expansions: &ExpansionsConfig, primary_people: &Vec<PlayerData>, 
-        queued_people: &Vec<PlayerData>, sheet_type: RaidSheetType, should_recheck: &mut u8, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> Option<PlayerData> {
+    pub fn draw_signups(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, expansions: &ExpansionsConfig, primary_people: &mut Vec<PlayerData>, 
+        queued_people: &mut Vec<PlayerData>, sheet_type: RaidSheetType, should_recheck: &mut u8, clear_target: &mut bool, checked_player: &mut Option<PlayerData>) -> Option<PlayerData> {
         
         let mut recheck_player = None;
         if *clear_target {
@@ -55,16 +55,17 @@ impl SignUpsUI {
 
                 let roles = ["Tank", "Healer", "Melee", "Ranged", "DPS", "Skipped"];
 
+
                 let mut primary_players = primary_people.clone();
                 for role in roles.iter() {
                     ui.push_id(format!("{role}P"), |ui| {
-                        if primary_people.iter().find(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()).is_none() {
+                        if primary_people.iter_mut().find(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()).is_none() {
                             return;
                         }
                         egui::CollapsingHeader::new(*role)
                         .default_open(true)
                         .show(ui, |ui| {
-                            for player in primary_people.iter().filter(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()) {
+                            for player in primary_people.iter_mut().filter(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()) {
                                 let mut label_name = if sheet_type == RaidSheetType::Classes {
                                     format!("{} ({})", player.name.clone(), player.class_name.clone())
                                 } else {
@@ -75,7 +76,7 @@ impl SignUpsUI {
                                     label_name = format!("⭐ {}", label_name);
                                 }
 
-                                if ui.label(egui::RichText::new(label_name).color(Self::colour_player_label(settings, player))).clicked() {
+                                if ui.label(egui::RichText::new(label_name).color(self.colour_player_label(settings, player, expansions))).clicked() {
                                     self.target_player = Some(player.clone());
                                 }
 
@@ -89,8 +90,8 @@ impl SignUpsUI {
                     ui.heading(egui::RichText::new("Recheck needed for new headers!").color(egui::Color32::YELLOW));
                     ui.heading("Primary People");
                 }
-                for player in primary_players.iter() {
-                    if ui.label(egui::RichText::new(player.name.clone()).color(Self::colour_player_label(settings, player))).clicked() {
+                for player in primary_players.iter_mut() {
+                    if ui.label(egui::RichText::new(player.name.clone()).color(self.colour_player_label(settings, player, expansions))).clicked() {
                         self.target_player = Some(player.clone());
                     }
                 }
@@ -110,7 +111,7 @@ impl SignUpsUI {
                         egui::CollapsingHeader::new(*role)
                         .default_open(true)
                         .show(ui, |ui| {
-                            for player in queued_people.iter().filter(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()) {
+                            for player in queued_people.iter_mut().filter(|x| x.class_name == role.to_lowercase() || x.role_name == role.to_lowercase()) {
                                 let mut label_name = if sheet_type == RaidSheetType::Classes {
                                     format!("{} ({})", player.name.clone(), player.class_name.clone())
                                 } else {
@@ -121,7 +122,7 @@ impl SignUpsUI {
                                     label_name = format!("⭐ {}", label_name);
                                 }
 
-                                if ui.label(egui::RichText::new(label_name).color(Self::colour_player_label(settings, player))).clicked() {
+                                if ui.label(egui::RichText::new(label_name).color(self.colour_player_label(settings, player, expansions))).clicked() {
                                     self.target_player = Some(player.clone());
                                 }
 
@@ -135,8 +136,8 @@ impl SignUpsUI {
                     ui.heading(egui::RichText::new("Recheck needed for new headers!").color(egui::Color32::YELLOW));
                 }
 
-                for player in queued_players.iter() {
-                    if ui.label(egui::RichText::new(player.name.clone()).color(Self::colour_player_label(settings, player))).clicked() {
+                for player in queued_players.iter_mut() {
+                    if ui.label(egui::RichText::new(player.name.clone()).color(self.colour_player_label(settings, player, expansions))).clicked() {
                         self.target_player = Some(player.clone());
                     }
                 }
@@ -172,11 +173,27 @@ impl SignUpsUI {
         recheck_player
     }
 
-    pub fn colour_player_label(settings: &mut config::settings::Settings, player: &PlayerData) -> egui::Color32 {
+    pub fn colour_player_label(&mut self, settings: &mut config::settings::Settings, player: &mut PlayerData, expansions: &ExpansionsConfig) -> egui::Color32 {
         // Check ilvl
         if player.skip_reason.is_some() {
             let skip_colour = settings.skip_colour.unwrap();
             return egui::Color32::from_rgb(skip_colour[0], skip_colour[1], skip_colour[2]);
+        }
+
+        if settings.dirty_state != player.dirty_state {
+            let (bad_gear, bad_socket, bad_item, embelishments) = GearChecker::check_gear(&player.character, settings, expansions);
+            let pvp_gear = GearChecker::check_pvp_gear(&player.character.gear, expansions);
+            let tier_count = GearChecker::check_tier_pieces(&player.character.gear, expansions);
+            player.bad_gear = bad_gear;
+            player.bad_socket = bad_socket;
+            player.bad_special_item = bad_item;
+            player.num_embelishments = embelishments;
+            player.pvp_gear = pvp_gear;
+            player.dirty_state = settings.dirty_state;
+            player.tier_count = tier_count;
+            if self.target_player.is_some() && self.target_player.as_ref().unwrap().discord_id == player.discord_id {
+                self.target_player = Some(player.clone());
+            }
         }
 
         for prio in settings.check_priority.iter() {
@@ -218,8 +235,10 @@ impl SignUpsUI {
                                     let required_difficulties = settings.required_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
                                     if required_difficulties.is_some() {
                                         if required_difficulties.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
-                                            let unkilled_colour = settings.unkilled_colour.unwrap();
-                                            return egui::Color32::from_rgb(unkilled_colour[0], unkilled_colour[1], unkilled_colour[2]);
+                                            if difficulty.1.killed_before == false {
+                                                let unkilled_colour = settings.unkilled_colour.unwrap();
+                                                return egui::Color32::from_rgb(unkilled_colour[0], unkilled_colour[1], unkilled_colour[2]);
+                                            }
                                         }
                                     }
                                 }
@@ -269,161 +288,11 @@ impl SignUpsUI {
     }
 
     pub fn draw_summary(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, primary_people: &Vec<PlayerData>, queued_people: &Vec<PlayerData>) {
-        let mut bad = 0;
-
-        let mut bad_primary = Vec::new();
-        let mut bad_secondary = Vec::new();
-
         let combined = primary_people.iter().chain(queued_people.iter()).collect::<Vec<&PlayerData>>();
         if combined.len() == 0 {
             ui.label("A general summary of the sign-ups will be shown here.");
             return;
         }
-
-        for player in combined.iter() {
-            let mut set_bad = false;
-            let mut bad_message = format!("<@{}> Your signed character {} does not meet the requirements:\n", player.discord_id, player.name.clone());
-            if player.skip_reason.is_some() {
-                bad += 1;
-                continue;
-            }
-
-            if player.ilvl < settings.average_ilvl {
-                set_bad = true;
-                bad_message += format!("Your ilvl {} does not match the required ilvl for this raid: {}\n", player.ilvl, settings.average_ilvl).as_str();
-            }
-
-            let mut boss_killed: BTreeMap<BossKey, (String, String, Vec<String>)> = BTreeMap::new();
-            for raid in &player.raid_data {
-                if settings.required_raids.get(&(*raid.0 as i32)).is_some() {
-                    for boss in &raid.1.bosses {
-                        for difficulty in &boss.1.difficulties {
-                            let required_difficulties = settings.required_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
-                            if required_difficulties.is_some() {
-                                if required_difficulties.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
-                                    if difficulty.1.killed_before == false {
-                                        let status = boss_killed.entry(BossKey { raid_id: *raid.0, boss_id: boss.1.boss_id }).or_default();
-                                        status.0 = raid.1.raid_name.clone();
-                                        status.1 = boss.1.boss_name.clone();
-                                        status.2.push(difficulty.1.difficulty_name.clone());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            let mut raid_name = String::new();
-            if boss_killed.len() > 0 {
-                set_bad = true;
-                for boss in boss_killed.iter() {
-                    if raid_name != boss.1.0 {
-                        raid_name = boss.1.0.clone();
-                        bad_message += format!("You have not killed the following bosses in {}:\n", raid_name).as_str();
-                    }
-
-                    let difficulties = boss.1.2.join(", ");
-                    bad_message += format!("\t{} ({})\n", boss.1.1, difficulties).as_str();
-                }
-            }
-
-            let mut saved_bosses: BTreeMap<BossKey, (String, String, Vec<String>, u64)> = BTreeMap::new();
-            for raid in &player.raid_data {
-                if settings.saved_raids.get(&(*raid.0 as i32)).is_some() {
-                    for boss in &raid.1.bosses {
-                        for difficulty in &boss.1.difficulties {
-                            let saved_difficulty = settings.saved_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
-                            if saved_difficulty.is_some() {
-                                if saved_difficulty.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
-                                    if difficulty.1.boss_kill_time.is_some() {
-                                        if difficulty.1.boss_kill_time.unwrap() > SavedChecker::get_wednesday_reset_timestamp() as u64 {
-                                            let status = saved_bosses.entry(BossKey { raid_id: *raid.0, boss_id: boss.1.boss_id }).or_default();
-                                            status.0 = raid.1.raid_name.clone();
-                                            status.1 = boss.1.boss_name.clone();
-                                            status.2.push(difficulty.1.difficulty_name.clone());
-                                            status.3 = difficulty.1.boss_kill_time.unwrap() / 1000;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            raid_name = String::new();
-            if saved_bosses.len() > 0 {
-                for boss in saved_bosses.iter() {
-                    if raid_name != boss.1.0 {
-                        raid_name = boss.1.0.clone();
-                        bad_message += format!("You are saved to the following bosses in {}:\n", raid_name).as_str();
-                    }
-    
-                    let difficulties = boss.1.2.join(", ");
-                    let kill_time: DateTime<Utc> = Utc.timestamp_opt(boss.1.3 as i64, 0).unwrap();
-                    let kill_time_local: DateTime<Local> = kill_time.with_timezone(&Local);
-                    bad_message += format!("\t{} ({}) killed on {}\n", boss.1.1, difficulties, kill_time_local.format("%A %H:%M")).as_str();
-                }
-            }
-
-            if player.bad_gear.len() > 0 {
-                set_bad = true;
-                bad_message += format!("You have the following gear that does not meet the requirements:\n").as_str();
-                for item in player.bad_gear.iter() {
-                    bad_message += format!("\t{}\n", item).as_str();
-                }
-            }
-
-            if player.bad_socket.len() > 0 {
-                set_bad = true;
-                bad_message += format!("You have the following items that do not meet the socket requirements:\n").as_str();
-                for item in player.bad_socket.iter() {
-                    bad_message += format!("\t{}\n", item).as_str();
-                }
-            }
-
-            if player.bad_special_item.len() > 0 {
-                set_bad = true;
-                bad_message += format!("You have the following special items that do not meet the requirements:\n").as_str();
-                for item in player.bad_special_item.iter() {
-                    bad_message += format!("\t{}\n", item).as_str();
-                }
-            }
-
-            if player.num_embelishments != -1 && player.num_embelishments < settings.embelishments {
-                set_bad = true;
-                bad_message += format!("You are missing **{}** embelishments, you need at least **{}**\n", settings.embelishments - player.num_embelishments, settings.embelishments).as_str();
-            }
-
-            for (_, (raid_name, missing_buff_count, missing_buff_possible, missing_buff_size, missing_buff_catchup)) in player.buff_status.iter() {
-                if *missing_buff_count > 0 {
-                    set_bad = true;
-                    bad_message += format!("You are missing **{}%** raid buff from {raid_name}!\n", missing_buff_count * missing_buff_size).as_str();
-                    
-                    if *missing_buff_possible == false {
-                        bad_message += format!("You can **not** catch up with {raid_name}'s raid buff this week.\n").as_str();
-                    } else {
-                        bad_message += format!("You can get a **{}%** raid buff this week, **assuming you have not done any renown this week**. ({} catchup)\n", missing_buff_size, missing_buff_catchup).as_str();
-                        if *missing_buff_count > 1 {
-                            bad_message += format!("Due to catch up being capped, **you will miss {}%** of the raid buff.\n", (missing_buff_count - 1) * missing_buff_size).as_str();
-                        }
-                    }
-                }
-            }
-
-            if set_bad == true{
-                if player.queued {
-                    bad_secondary.push(bad_message);
-                } else {
-                    bad_primary.push(bad_message);
-                }
-                bad += 1;
-            }
-        }
-
-        ui.label(format!("{}/{} haved passed the checks.", (primary_people.len() + queued_people.len()) - bad, primary_people.len() + queued_people.len()));
-        ui.label("");
 
         let mut unconfirmed = String::default();
         let mut cancelled: String = String::default();
@@ -444,19 +313,6 @@ impl SignUpsUI {
         if cancelled.len() > 0 {
             ui.label(egui::RichText::new("The following people have cancelled their attendance on the raid plan:").color(egui::Color32::RED));
             ui.label(cancelled);
-            ui.label("");
-        }
-
-        for message in bad_primary.iter() {
-            ui.label(message.clone());
-            ui.label("");
-            ui.label("");
-        }
-
-        ui.heading("Queued People Issues");
-        for message in bad_secondary.iter() {
-            ui.label(message.clone());
-            ui.label("");
             ui.label("");
         }
     }
@@ -508,6 +364,23 @@ impl SignUpsUI {
         if let Some(regular) = settings.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id) {
             ui.add(Label::new(egui::RichText::new(format!("This player is marked as a regular ({}).", regular)).color(egui::Color32::from_rgb(255, 255, 0))));
         }
+
+        let last_updated = player.character.last_updated_timestamp.epoch / 1000;
+        let last_updated: DateTime<Utc> = Utc.timestamp_opt(last_updated as i64, 0).unwrap();
+        let last_updated_local: DateTime<Local> = last_updated.with_timezone(&Local);
+        let now = Local::now();
+        let duration = now.signed_duration_since(last_updated_local);
+        let color = 
+            if duration.num_days() > 2 {
+                egui::Color32::from_rgb(255, 0, 0)
+            } else if duration.num_days() > 0 {
+                egui::Color32::from_rgb(255, 255, 0)
+            } else {
+                egui::Color32::from_rgb(0, 255, 0)
+            };
+        
+
+        ui.label(egui::RichText::new(format!("Last armoury update for character: {}", last_updated_local.format("%A %d %b %H:%M"))).color(color));
 
         let max_level = if expansions.latest_expansion.is_some() {
             expansions.latest_expansion.as_ref().unwrap().max_lvl
@@ -702,8 +575,10 @@ impl SignUpsUI {
                             } else {
                                 format!("{} has killed Mythic \"{raid_name}\" end boss on this character, but has not done so on Heroic.", player.name.clone())
                             }
-                        } else {
+                        } else if *heroic {
                             format!("{} has killed Heroic \"{raid_name}\" end boss on this character.", player.name.clone())
+                        } else {
+                            format!("{} has killed Normal \"{raid_name}\" end boss on this character.", player.name.clone())
                         }
                     }
                 },

@@ -279,7 +279,7 @@ impl eframe::App for RaidHelperCheckerApp {
                 ui.horizontal(|ui| {
 
                     if ui.button("Check sign-up URL").clicked() {
-                        self.raid_questions.state = checker::raid_questions::QuestionState::AskSaved;
+                        self.raid_questions.state = QuestionState::AskRaidHelperURL;
                         self.raid_questions.ignore_url_question = false;
                         self.raid_questions.player_only = PlayerOnlyCheckType::None;
                     }
@@ -295,7 +295,7 @@ impl eframe::App for RaidHelperCheckerApp {
             });
 
             let mut should_recheck: u8 = 0;
-            let recheck_player = self.signup_ui.draw_signups(ctx, &mut self.settings, &self.expansions, &self.raid_sheet.active_players, &self.raid_sheet.queued_players, self.raid_sheet.sheet_type.clone(), &mut should_recheck, &mut self.clear_target, &mut self.checked_player);
+            let recheck_player = self.signup_ui.draw_signups(ctx, &mut self.settings, &self.expansions, &mut self.raid_sheet.active_players, &mut self.raid_sheet.queued_players, self.raid_sheet.sheet_type.clone(), &mut should_recheck, &mut self.clear_target, &mut self.checked_player);
             if recheck_player.is_some() {
                 let armory_url = recheck_player.as_ref().unwrap().armory_url.clone();
                 let parts: Vec<_> = armory_url.trim_end_matches('/').rsplitn(3, '/').collect();
@@ -305,14 +305,14 @@ impl eframe::App for RaidHelperCheckerApp {
                     return;
                 }
                 info!("Rechecking player: {} {}-{}", recheck_player.as_ref().unwrap().name, parts[0], realm.as_ref().unwrap());
-                self.raid_questions.state = QuestionState::AskSaved;
+                self.raid_questions.state = QuestionState::AskRaidHelperURL;
                 self.raid_questions.ignore_url_question = true;
                 self.raid_questions.player_only = PlayerOnlyCheckType::PlayerFromSheet(recheck_player.as_ref().unwrap().discord_id.clone());
                 let _ = self.raid_questions.ask_questions(ctx, &self.expansions, Some(format!("{}-{}", parts[0], realm.unwrap())), Some(PlayerOnlyCheckType::PlayerFromSheet(recheck_player.as_ref().unwrap().discord_id.clone())), &mut self.settings);
             }
 
             if should_recheck == SHOULD_RECHECK_ALL {
-                self.raid_questions.state = QuestionState::AskSaved;
+                self.raid_questions.state = QuestionState::AskRaidHelperURL;
                 let _ = self.raid_questions.ask_questions(ctx,  &self.expansions, Some(self.last_raid.raid_url.clone()), Some(PlayerOnlyCheckType::None), &mut self.settings);
             } else if should_recheck == SHOULD_RECHECK_ATTENDANCE {
                 egui::Window::new("Rechecking raid plan")
@@ -345,7 +345,7 @@ impl eframe::App for RaidHelperCheckerApp {
             }
 
             if self.draw_player_check == true {
-                self.raid_questions.state = QuestionState::AskSaved;
+                self.raid_questions.state = QuestionState::AskRaidHelperURL;
                 self.raid_questions.ignore_url_question = false;
                 self.raid_questions.player_only = PlayerOnlyCheckType::Player;
                 let _ = self.raid_questions.ask_questions(ctx, &self.expansions, None, Some(PlayerOnlyCheckType::Player), &mut self.settings);

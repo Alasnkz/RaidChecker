@@ -188,7 +188,10 @@ pub struct Settings {
     pub check_priority: Vec<PriorityChecks>,
     #[serde(default = "default_require_greater")]
     pub save_moved_message: bool,
-    pub regulars: Option<BTreeMap<String, String>>
+    pub regulars: Option<BTreeMap<String, String>>,
+
+    #[serde(skip)]
+    pub dirty_state: i32
 }
 
 fn default_saved() -> BTreeMap<i32, RequiredRaid> {
@@ -236,6 +239,7 @@ impl Default for Settings {
                 PriorityChecks::BadSocket,
                 PriorityChecks::RaidBuff,
             ],
+            dirty_state: 0
         }
     }
 }

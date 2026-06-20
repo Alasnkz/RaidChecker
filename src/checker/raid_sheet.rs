@@ -4,7 +4,7 @@ use serde_json::{Deserializer, Value, from_value};
 use tracing::info;
 use std::{collections::BTreeMap, fs::File, io::{Read, Write}, sync::mpsc::{self, Receiver, Sender}, thread};
 
-use crate::config::{self, last_raid::LastRaid, settings::RequiredRaid};
+use crate::{checker::armory_checker::ArmoryCharacter, config::{self, last_raid::LastRaid, settings::RequiredRaid}};
 
 use super::check_player::{PlayerChecker, PlayerData};
 
@@ -282,6 +282,7 @@ impl RaidSheet {
                         bad_gear: Vec::new(),
                         bad_socket: Vec::new(),
                         bad_special_item: Vec::new(),
+                        character: ArmoryCharacter::default(),
                         num_embelishments: -1,
                         ilvl: 0,
                         lvl: 0,
@@ -294,7 +295,8 @@ impl RaidSheet {
                         queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" ,
                         confirmed: 0,
                         class_name: player.className.clone().to_lowercase(),
-                        role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase()
+                        role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase(),
+                        dirty_state: -1
                     });
                 }
                 
