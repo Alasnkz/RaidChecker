@@ -49,27 +49,6 @@ pub struct CharacterGear {
     pub sockets: Option<Vec<GearSockets>>
 }
 
-#[derive(serde::Deserialize, Clone)]
-struct CharacterGearContainer {
-    /*back: CharacterGear,
-    chest: CharacterGear,
-    foot: CharacterGear,
-    hand: CharacterGear,
-    head: CharacterGear,
-    leftFinger: CharacterGear,
-    leftTrinket: CharacterGear,
-    leg: CharacterGear,
-    neck: CharacterGear,
-    offhand: Option<CharacterGear>,
-    rightFinger: CharacterGear,
-    rightTrinket: CharacterGear,
-    shoulder: CharacterGear,
-    waist: CharacterGear,
-    weapon: CharacterGear,
-    wrist: CharacterGear,*/
-}
-
-
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct ArmoryTimestamp {
     #[serde(alias = "epoch")]
@@ -302,81 +281,4 @@ impl ArmoryChecker {
             }
         }
     }
-
-    pub fn check_gear(armory: &ArmoryCharacterResponse, settings: &config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig) -> (Vec<String>, Vec<String>, Vec<String>, i32) {
-        /*info!("--- GEAR CHECK ---");
-        let mut enchant_vec = Vec::new();
-        let mut socket_vec = Vec::new();
-        let mut special_item = Vec::new();
-        let mut embelishments = 0;
-
-        if armory.character.gear.is_empty() {
-            info!("No gear found for character");
-            return (vec![String::from("No gear found.")], Vec::new(), Vec::new(), -1);
-        }
-
-        let expansion = expansions.latest_expansion.clone().unwrap();
-        let gear_slots = armory.character.gear.clone();
-        for gear in gear_slots {
-            if gear.1.bonus_list.is_some() {
-                for bonus in gear.1.bonus_list.clone().unwrap() {
-                    if bonus == expansion.gear_embelishment_bonus_id {
-                        info!("Found embelishment bonus on gear: {}", gear.1.inventory_type.gear_type);
-                        embelishments += 1;
-                    }
-                }
-            }
-
-            let mut enchantment_slot = expansion.slot_data.iter().find(|x| {
-                let mut mtch = x.slot == gear.1.inventory_type.gear_type.to_lowercase();
-                if mtch == false {
-                    mtch = x.sub_slots.iter().find(|y| **y == gear.1.inventory_type.gear_type.to_lowercase()).is_some();
-                }
-                mtch
-            });
-
-            if enchantment_slot.is_none() {
-                let target_type = gear.1.inventory_type.gear_type.to_lowercase();
-                enchantment_slot = expansion.latest_season.as_ref()
-                    .and_then(|season| {
-                        season.seasonal_slot_data.iter().find(|ench| {
-                            let mut matches = ench.slot == target_type;
-                            if !matches {
-                                matches = ench.sub_slots.iter().any(|sub_slot_ref| {
-                                    sub_slot_ref.as_str() == target_type
-                                });
-                            }
-                            matches
-                        })
-                    });
-            }
-
-            if enchantment_slot.is_some() {
-
-                if (gear.0 == "offhand" && gear.1.inventory_type.gear_type.to_lowercase() == "weapon") || gear.0 != "offhand" {
-                    let str = Self::check_enchant_slot(&expansion, &gear.1, enchantment_slot.unwrap(), &settings, expansions);
-                    if str.len() > 0 {
-                        info!("{str}");
-                        enchant_vec.push(str);
-                    }
-                }
-
-                let str = Self::check_gear_socket(&expansions, &gear.1, enchantment_slot.unwrap(), &settings);
-                if str.len() > 0 {
-                    info!("{str}");
-                    socket_vec.push(str);
-                }
-
-                let special = Self::check_special_item(&expansions, &gear.1, enchantment_slot.unwrap(), &settings);
-                if special.len() > 0 {
-                    info!("{special}");
-                    special_item.push(special);
-                }
-            }
-        }
-        info!("--- END GEAR CHECK ---");
-        (enchant_vec, socket_vec, special_item, embelishments)*/
-        (Vec::new(), Vec::new(), Vec::new(), 0)
-    }
-
 }

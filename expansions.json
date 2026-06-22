@@ -1,7 +1,7 @@
 {
   "rhcu_version": "2.0.5",
-  "modified": 1781972510,
-  "changes": "- Added Sporefall raid, will automatically show up when the raid is released.",
+  "modified": 1782156588,
+  "changes": "Bugfix for Legs not checking correctly.",
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
