@@ -74,6 +74,7 @@ pub struct PlayerData {
     pub bad_gear: Vec<String>,
     pub bad_socket: Vec<String>,
     pub bad_special_item: Vec<String>,
+    #[serde(default)]
     pub character: ArmoryCharacter,
     pub num_embelishments: i32,
     pub raid_data: BTreeMap<usize, PlayerRaidData>,

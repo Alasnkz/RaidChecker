@@ -181,16 +181,19 @@ impl SignUpsUI {
         }
 
         if settings.dirty_state != player.dirty_state {
-            let (bad_gear, bad_socket, bad_item, embelishments) = GearChecker::check_gear(&player.character, settings, expansions);
-            let pvp_gear = GearChecker::check_pvp_gear(&player.character.gear, expansions);
-            let tier_count = GearChecker::check_tier_pieces(&player.character.gear, expansions);
-            player.bad_gear = bad_gear;
-            player.bad_socket = bad_socket;
-            player.bad_special_item = bad_item;
-            player.num_embelishments = embelishments;
-            player.pvp_gear = pvp_gear;
+            if player.character.gear.len() > 0 {
+                let (bad_gear, bad_socket, bad_item, embelishments) = GearChecker::check_gear(&player.character, settings, expansions);
+                let pvp_gear = GearChecker::check_pvp_gear(&player.character.gear, expansions);
+                let tier_count = GearChecker::check_tier_pieces(&player.character.gear, expansions);
+                player.bad_gear = bad_gear;
+                player.bad_socket = bad_socket;
+                player.bad_special_item = bad_item;
+                player.num_embelishments = embelishments;
+                player.pvp_gear = pvp_gear;
+                player.tier_count = tier_count;
+            }
             player.dirty_state = settings.dirty_state;
-            player.tier_count = tier_count;
+           
             if self.target_player.is_some() && self.target_player.as_ref().unwrap().discord_id == player.discord_id {
                 self.target_player = Some(player.clone());
             }

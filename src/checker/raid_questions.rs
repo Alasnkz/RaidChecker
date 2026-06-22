@@ -88,19 +88,7 @@ impl RaidCheckQuestions {
 
         match self.state {
             QuestionState::AskSaved => {
-                if settings.save_moved_message == false {
-                    egui::Window::new("Saved is moved")
-                    .show(ctx, |ui| {
-                        ui.label("The saved checker is now in the settings, and will update dynamically from the current snapshot of the player's armoury.\n\nThis message will not be shown again.");
-                        if ui.button("Ok").clicked() {
-                            settings.save_moved_message = true;
-                            settings.save_mut();
-                            self.state = QuestionState::AskRaidHelperURL;
-                        }
-                    });
-                } else {
-                    self.state = QuestionState::AskRaidHelperURL;
-                }
+                self.state = QuestionState::AskRaidHelperURL;
             },
 
             QuestionState::AskSavedBosses => {
