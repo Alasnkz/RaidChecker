@@ -77,7 +77,7 @@ impl GearChecker {
 
 
     fn check_enchant_slot(expansion: &Expansion, gear: &CharacterGear, item: &ItemData, settings: &Settings, expansions: &config::expansion_config::ExpansionsConfig) -> String {
-        let binding = settings.slots.as_array();
+        let binding = settings.current_preset.slots.as_array();
         let item_options_opt: Option<&(SlotSetting, &str)> = binding.iter().find(|x| {
             x.1 == item.slot
         });
@@ -180,7 +180,7 @@ impl GearChecker {
             return String::default();
         }
 
-        let binding = settings.slots.as_array();
+        let binding = settings.current_preset.slots.as_array();
         let enchant_options_opt = binding.iter().find(|x| {
             x.1 == item.slot
         });
@@ -255,7 +255,7 @@ impl GearChecker {
         settings: &Settings
     ) -> String {
     
-        let binding = settings.slots.as_array();
+        let binding = settings.current_preset.slots.as_array();
         let Some((slot_setting, _)) = binding.iter().find(|(_, slot)| *slot == item.slot) else {
             return String::default();
         };

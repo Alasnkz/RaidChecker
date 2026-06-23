@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use egui::text_edit;
 use tracing::warn;
 
 use crate::config::{self, expansion_config::ExpansionRaid, settings::{RequiredRaid, RequiredRaidDifficulty}};
@@ -15,6 +16,7 @@ pub(crate) struct SettingsUi {
     pub current_raid_difficulty: i32,
     pub priority_name_str: String,
     pub priority_discord_str: String,
+    pub preset_name_str: String,
 }
 
 impl SettingsUi {
@@ -31,6 +33,7 @@ impl SettingsUi {
 
             priority_name_str: String::default(),
             priority_discord_str: String::default(),
+            preset_name_str: String::default(),
         }
     }
 
@@ -41,6 +44,27 @@ impl SettingsUi {
             .resizable(false)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
+                    egui::ComboBox::from_label("Current preset")
+                        .selected_text(format!("{}", settings.current_preset.name))
+                        .show_ui(ui, |ui| {
+                            for preset in settings.clone().presets.values_mut() {
+                                ui.horizontal(|ui| {
+                                    ui.selectable_value(&mut settings.last_preset, Some(preset.name.clone()), preset.name.clone());
+                                    if settings.clone().presets.iter().len() > 1 && ui.button("Delete").clicked() {
+                                        settings.presets.remove(&preset.name);
+                                        settings.last_preset = Some(settings.presets.keys().next().unwrap().clone());
+                                        settings.current_preset = settings.presets.get(&settings.last_preset.clone().unwrap_or("".to_string())).unwrap().clone();
+                                        settings.save_mut();
+                                    }
+                                });
+                            }
+                        });
+
+                    if settings.current_preset.name != settings.last_preset.clone().unwrap_or("Default".to_string()) {
+                        settings.current_preset = settings.presets.get(&settings.last_preset.clone().unwrap_or("".to_string())).unwrap().clone();
+                        settings.dirty_state = settings.dirty_state + 1;
+                    }
+
                     if ui.button("Item Requirements").clicked() {
                         self.draw_item_requirements = !self.draw_item_requirements;
                         settings.save_mut();
@@ -65,6 +89,24 @@ impl SettingsUi {
                         self.regular_settings = !self.regular_settings;
                         settings.save_mut();
                     }
+
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.add(egui::TextEdit::singleline(&mut self.preset_name_str).hint_text("Preset Name...").desired_width(100.0));
+                        if ui.button("Add preset").clicked() {
+                            if !self.preset_name_str.is_empty() && !settings.presets.contains_key(&self.preset_name_str) {
+                                settings.save_mut();
+                                let mut new_preset = settings.current_preset.clone();
+                                new_preset.name = self.preset_name_str.clone();
+                                settings.presets.insert(self.preset_name_str.clone(), new_preset.clone());
+                                settings.last_preset = Some(self.preset_name_str.clone());
+                                settings.current_preset = new_preset.clone();
+                                self.preset_name_str.clear();
+                                settings.save_mut();
+                            }
+                        }
+                    });
+                    
 
                 });
                 if ui.button("Close").clicked() {
@@ -132,10 +174,10 @@ impl SettingsUi {
             .resizable(false)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
-                    ui.add(egui::Slider::new(&mut settings.average_ilvl, 0..=max_ilvl).text("Average item level required"));
-                    ui.add(egui::Slider::new(&mut settings.embelishments, 0..=2).text("Embelishments required"));
+                    ui.add(egui::Slider::new(&mut settings.current_preset.average_ilvl, 0..=max_ilvl).text("Average item level required"));
+                    ui.add(egui::Slider::new(&mut settings.current_preset.embelishments, 0..=2).text("Embelishments required"));
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        for item in settings.slots.as_array_mut().iter_mut() {
+                        for item in settings.current_preset.slots.as_array_mut().iter_mut() {
                             let seasonal_item = current_season.as_ref().and_then(|s| {
                                 if !s.seasonal_slot_data.is_empty() {
                                     return s.seasonal_slot_data.iter().find(|x| x.slot == item.1);
@@ -265,11 +307,11 @@ impl SettingsUi {
                 }
 
                 ui.vertical(|ui| {
-                    if settings.required_raids.is_empty() || 
-                            settings.required_raids.iter().find(|x| expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(*x.0).is_none()).is_some() {
+                    if settings.current_preset.required_raids.is_empty() || 
+                            settings.current_preset.required_raids.iter().find(|x| expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(*x.0).is_none()).is_some() {
                         let latest_raid = expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id;
-                        settings.required_raids.clear();
-                        settings.required_raids.insert(latest_raid, RequiredRaid {
+                        settings.current_preset.required_raids.clear();
+                        settings.current_preset.required_raids.insert(latest_raid, RequiredRaid {
                             id: latest_raid,
                             difficulty: BTreeMap::new(),
                         });
@@ -282,7 +324,7 @@ impl SettingsUi {
                             for season in expansion_config.latest_expansion.as_ref().unwrap().seasons.iter() {
                                 ui.label(season.seasonal_identifier.clone());
                                 for raid in season.raids.iter() {
-                                    let text_colour = if settings.required_raids.get(&raid.id).is_some() && settings.required_raids.get(&raid.id).unwrap().difficulty.iter().any(|d| !d.1.boss_ids.is_empty()) {
+                                    let text_colour = if settings.current_preset.required_raids.get(&raid.id).is_some() && settings.current_preset.required_raids.get(&raid.id).unwrap().difficulty.iter().any(|d| !d.1.boss_ids.is_empty()) {
                                         egui::Color32::YELLOW
                                     } 
                                     else{ 
@@ -298,8 +340,8 @@ impl SettingsUi {
                             }
                         });
 
-                    if settings.required_raids.get(&self.current_raid_id).is_none() {
-                        settings.required_raids.insert(self.current_raid_id, RequiredRaid {
+                    if settings.current_preset.required_raids.get(&self.current_raid_id).is_none() {
+                        settings.current_preset.required_raids.insert(self.current_raid_id, RequiredRaid {
                             id: self.current_raid_id,
                             difficulty: BTreeMap::new(),
                         });
@@ -309,9 +351,9 @@ impl SettingsUi {
                         .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.get(self.current_raid_difficulty as usize).unwrap().difficulty_name))
                         .show_ui(ui, |ui| {
                             for difficulty in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.iter() {
-                                let text_colour = if settings.required_raids.get(&self.current_raid_id).is_some() && 
-                                    settings.required_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).is_some() &&
-                                    !settings.required_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).unwrap().boss_ids.is_empty() {
+                                let text_colour = if settings.current_preset.required_raids.get(&self.current_raid_id).is_some() && 
+                                settings.current_preset.required_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).is_some() &&
+                                    !settings.current_preset.required_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).unwrap().boss_ids.is_empty() {
                                     egui::Color32::YELLOW
                                 } 
                                 else{ 
@@ -322,7 +364,7 @@ impl SettingsUi {
                             }
                         });
 
-                    let raid_difficulty = settings.required_raids.get_mut(&self.current_raid_id).unwrap().difficulty.entry(self.current_raid_difficulty).or_insert(RequiredRaidDifficulty {
+                    let raid_difficulty = settings.current_preset.required_raids.get_mut(&self.current_raid_id).unwrap().difficulty.entry(self.current_raid_difficulty).or_insert(RequiredRaidDifficulty {
                         boss_ids: Vec::new(),
                     });
 
@@ -381,11 +423,11 @@ impl SettingsUi {
                 }
 
                 ui.vertical(|ui| {
-                    if settings.saved_raids.is_empty() || 
-                            settings.saved_raids.iter().find(|x| expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(*x.0).is_none()).is_some() {
+                    if settings.current_preset.saved_raids.is_empty() || 
+                        settings.current_preset.saved_raids.iter().find(|x| expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(*x.0).is_none()).is_some() {
                         let latest_raid = expansion_config.latest_expansion.as_ref().unwrap().latest_season.as_ref().unwrap().raids.last().unwrap().id;
-                        settings.saved_raids.clear();
-                        settings.saved_raids.insert(latest_raid, RequiredRaid {
+                        settings.current_preset.saved_raids.clear();
+                        settings.current_preset.saved_raids.insert(latest_raid, RequiredRaid {
                             id: latest_raid,
                             difficulty: BTreeMap::new(),
                         });
@@ -398,7 +440,7 @@ impl SettingsUi {
                             for season in expansion_config.latest_expansion.as_ref().unwrap().seasons.iter() {
                                 ui.label(season.seasonal_identifier.clone());
                                 for raid in season.raids.iter() {
-                                    let text_colour = if settings.saved_raids.get(&raid.id).is_some() && settings.saved_raids.get(&raid.id).unwrap().difficulty.iter().any(|d| !d.1.boss_ids.is_empty()) {
+                                    let text_colour = if settings.current_preset.saved_raids.get(&raid.id).is_some() && settings.current_preset.saved_raids.get(&raid.id).unwrap().difficulty.iter().any(|d| !d.1.boss_ids.is_empty()) {
                                         egui::Color32::YELLOW
                                     } 
                                     else{ 
@@ -414,8 +456,8 @@ impl SettingsUi {
                             }
                         });
 
-                    if settings.saved_raids.get(&self.current_raid_id).is_none() {
-                        settings.saved_raids.insert(self.current_raid_id, RequiredRaid {
+                    if settings.current_preset.saved_raids.get(&self.current_raid_id).is_none() {
+                        settings.current_preset.saved_raids.insert(self.current_raid_id, RequiredRaid {
                             id: self.current_raid_id,
                             difficulty: BTreeMap::new(),
                         });
@@ -425,9 +467,9 @@ impl SettingsUi {
                         .selected_text(format!("{}", expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.get(self.current_raid_difficulty as usize).unwrap().difficulty_name))
                         .show_ui(ui, |ui| {
                             for difficulty in expansion_config.latest_expansion.as_ref().unwrap().find_raid_by_id(self.current_raid_id).unwrap_or(&ExpansionRaid::default()).difficulty.iter() {
-                                let text_colour = if settings.saved_raids.get(&self.current_raid_id).is_some() && 
-                                    settings.saved_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).is_some() &&
-                                    !settings.saved_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).unwrap().boss_ids.is_empty() {
+                                let text_colour = if settings.current_preset.saved_raids.get(&self.current_raid_id).is_some() && 
+                                settings.current_preset.saved_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).is_some() &&
+                                    !settings.current_preset.saved_raids.get(&self.current_raid_id).unwrap().difficulty.get(&difficulty.id).unwrap().boss_ids.is_empty() {
                                     egui::Color32::YELLOW
                                 } 
                                 else{ 
@@ -438,7 +480,7 @@ impl SettingsUi {
                             }
                         });
 
-                    let raid_difficulty = settings.saved_raids.get_mut(&self.current_raid_id).unwrap().difficulty.entry(self.current_raid_difficulty).or_insert(RequiredRaidDifficulty {
+                    let raid_difficulty = settings.current_preset.saved_raids.get_mut(&self.current_raid_id).unwrap().difficulty.entry(self.current_raid_difficulty).or_insert(RequiredRaidDifficulty {
                         boss_ids: Vec::new(),
                     });
 
@@ -489,9 +531,9 @@ impl SettingsUi {
             .resizable(false)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
-                    let mut new_prio = settings.check_priority.clone();
+                    let mut new_prio = settings.current_preset.check_priority.clone();
                     egui::Grid::new("prio_grid").show(ui, |ui| {
-                        for prio in settings.check_priority.iter() {
+                        for prio in settings.current_preset.check_priority.iter() {
                             ui.label(prio.as_str());
                             // Buttons column
                             ui.horizontal(|ui| {
@@ -507,7 +549,7 @@ impl SettingsUi {
                             ui.end_row();
                         }
                     });
-                    settings.check_priority = new_prio;
+                    settings.current_preset.check_priority = new_prio;
                     ui.horizontal(|ui| {
                         if ui.button("Close").clicked() {
                             close = true;
@@ -528,7 +570,7 @@ impl SettingsUi {
 
                 ui.horizontal(|ui| {
                     ui.label("Skip colour");
-                    let s_skip_colour = settings.skip_colour.unwrap_or([255, 0, 0, 255]);
+                    let s_skip_colour = settings.current_preset.skip_colour.unwrap_or([255, 0, 0, 255]);
                     let mut skip_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_skip_colour[0] as f32 / 255.0,
                         s_skip_colour[1] as f32 / 255.0,
@@ -537,7 +579,7 @@ impl SettingsUi {
                     );
                 
                     if egui::color_picker::color_edit_button_rgba(ui, &mut skip_colour, egui::color_picker::Alpha::Opaque).changed() {
-                        settings.skip_colour = Some([
+                        settings.current_preset.skip_colour = Some([
                             (skip_colour[0] * 255.0).round() as u8,
                             (skip_colour[1] * 255.0).round() as u8,
                             (skip_colour[2] * 255.0).round() as u8,
@@ -549,7 +591,7 @@ impl SettingsUi {
                 
                 ui.horizontal(|ui| {
                     ui.label("Bad item level colour");
-                    let s_ilvl_colour = settings.ilvl_colour.unwrap_or([255, 0, 0, 255]);
+                    let s_ilvl_colour = settings.current_preset.ilvl_colour.unwrap_or([255, 0, 0, 255]);
                     let mut ilvl_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_ilvl_colour[0] as f32 / 255.0,
                         s_ilvl_colour[1] as f32 / 255.0,
@@ -558,7 +600,7 @@ impl SettingsUi {
                     );
                 
                     if egui::color_picker::color_edit_button_rgba(ui, &mut ilvl_colour, egui::color_picker::Alpha::Opaque).changed() {
-                        settings.ilvl_colour = Some([
+                        settings.current_preset.ilvl_colour = Some([
                             (ilvl_colour[0] * 255.0).round() as u8,
                             (ilvl_colour[1] * 255.0).round() as u8,
                             (ilvl_colour[2] * 255.0).round() as u8,
@@ -570,7 +612,7 @@ impl SettingsUi {
 
                 ui.horizontal(|ui| {
                     ui.label("Saved kills colour");
-                    let s_saved_colour = settings.saved_colour.unwrap_or([255, 0, 0, 255]);
+                    let s_saved_colour = settings.current_preset.saved_colour.unwrap_or([255, 0, 0, 255]);
                     let mut saved_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_saved_colour[0] as f32 / 255.0,
                         s_saved_colour[1] as f32 / 255.0,
@@ -579,7 +621,7 @@ impl SettingsUi {
                     );
                 
                     if egui::color_picker::color_edit_button_rgba(ui, &mut saved_colour, egui::color_picker::Alpha::Opaque).changed() {
-                        settings.saved_colour = Some([
+                        settings.current_preset.saved_colour = Some([
                             (saved_colour[0] * 255.0).round() as u8,
                             (saved_colour[1] * 255.0).round() as u8,
                             (saved_colour[2] * 255.0).round() as u8,
@@ -591,7 +633,7 @@ impl SettingsUi {
 
                 ui.horizontal(|ui| {
                     ui.label("Unkilled bosses colour");
-                    let s_unkilled_colour = settings.unkilled_colour.unwrap_or([255, 0, 0, 255]);
+                    let s_unkilled_colour = settings.current_preset.unkilled_colour.unwrap_or([255, 0, 0, 255]);
                     let mut unkilled_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_unkilled_colour[0] as f32 / 255.0,
                         s_unkilled_colour[1] as f32 / 255.0,
@@ -600,7 +642,7 @@ impl SettingsUi {
                     );
                 
                     if egui::color_picker::color_edit_button_rgba(ui, &mut unkilled_colour, egui::color_picker::Alpha::Opaque).changed() {
-                        settings.unkilled_colour = Some([
+                        settings.current_preset.unkilled_colour = Some([
                             (unkilled_colour[0] * 255.0).round() as u8,
                             (unkilled_colour[1] * 255.0).round() as u8,
                             (unkilled_colour[2] * 255.0).round() as u8,
@@ -612,7 +654,7 @@ impl SettingsUi {
 
                 ui.horizontal(|ui| {
                     ui.label("Bad gear colour");
-                    let s_bad_gear_colour = settings.bad_gear_colour.unwrap_or([255, 0, 0, 255]);
+                    let s_bad_gear_colour = settings.current_preset.bad_gear_colour.unwrap_or([255, 0, 0, 255]);
                     let mut bad_gear_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_bad_gear_colour[0] as f32 / 255.0,
                         s_bad_gear_colour[1] as f32 / 255.0,
@@ -621,7 +663,7 @@ impl SettingsUi {
                     );
                 
                     if egui::color_picker::color_edit_button_rgba(ui, &mut bad_gear_colour, egui::color_picker::Alpha::Opaque).changed() {
-                        settings.bad_gear_colour = Some([
+                        settings.current_preset.bad_gear_colour = Some([
                             (bad_gear_colour[0] * 255.0).round() as u8,
                             (bad_gear_colour[1] * 255.0).round() as u8,
                             (bad_gear_colour[2] * 255.0).round() as u8,
@@ -633,7 +675,7 @@ impl SettingsUi {
 
                 ui.horizontal(|ui| {
                     ui.label("Buff colour");
-                    let s_buff_colour = settings.buff_colour.unwrap_or([255, 0, 0, 255]);
+                    let s_buff_colour = settings.current_preset.buff_colour.unwrap_or([255, 0, 0, 255]);
                     let mut buff_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_buff_colour[0] as f32 / 255.0,
                         s_buff_colour[1] as f32 / 255.0,
@@ -642,7 +684,7 @@ impl SettingsUi {
                     );
                 
                     if egui::color_picker::color_edit_button_rgba(ui, &mut buff_colour, egui::color_picker::Alpha::Opaque).changed() {
-                        settings.buff_colour = Some([
+                        settings.current_preset.buff_colour = Some([
                             (buff_colour[0] * 255.0).round() as u8,
                             (buff_colour[1] * 255.0).round() as u8,
                             (buff_colour[2] * 255.0).round() as u8,
@@ -654,7 +696,7 @@ impl SettingsUi {
                 
                 ui.horizontal(|ui| {
                     ui.label("Missing socket colour");
-                    let s_buff_colour = settings.bad_socket_colour.unwrap_or([255, 0, 0, 255]);
+                    let s_buff_colour = settings.current_preset.bad_socket_colour.unwrap_or([255, 0, 0, 255]);
                     let mut buff_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_buff_colour[0] as f32 / 255.0,
                         s_buff_colour[1] as f32 / 255.0,
@@ -663,7 +705,7 @@ impl SettingsUi {
                     );
                 
                     if egui::color_picker::color_edit_button_rgba(ui, &mut buff_colour, egui::color_picker::Alpha::Opaque).changed() {
-                        settings.bad_socket_colour = Some([
+                        settings.current_preset.bad_socket_colour = Some([
                             (buff_colour[0] * 255.0).round() as u8,
                             (buff_colour[1] * 255.0).round() as u8,
                             (buff_colour[2] * 255.0).round() as u8,
@@ -675,7 +717,7 @@ impl SettingsUi {
 
                 ui.horizontal(|ui| {
                     ui.label("Missing special item colour");
-                    let s_buff_colour = settings.bad_special_item_colour.unwrap_or([255, 0, 0, 255]);
+                    let s_buff_colour = settings.current_preset.bad_special_item_colour.unwrap_or([255, 0, 0, 255]);
                     let mut buff_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_buff_colour[0] as f32 / 255.0,
                         s_buff_colour[1] as f32 / 255.0,
@@ -684,7 +726,7 @@ impl SettingsUi {
                     );
                 
                     if egui::color_picker::color_edit_button_rgba(ui, &mut buff_colour, egui::color_picker::Alpha::Opaque).changed() {
-                        settings.bad_special_item_colour = Some([
+                        settings.current_preset.bad_special_item_colour = Some([
                             (buff_colour[0] * 255.0).round() as u8,
                             (buff_colour[1] * 255.0).round() as u8,
                             (buff_colour[2] * 255.0).round() as u8,
@@ -696,7 +738,7 @@ impl SettingsUi {
 
                 ui.horizontal(|ui| {
                     ui.label("Missing tier colour");
-                    let s_buff_colour = settings.missing_tier_colour.unwrap_or([255, 0, 0, 255]);
+                    let s_buff_colour = settings.current_preset.missing_tier_colour.unwrap_or([255, 0, 0, 255]);
                     let mut buff_colour = egui::Rgba::from_rgba_unmultiplied(
                         s_buff_colour[0] as f32 / 255.0,
                         s_buff_colour[1] as f32 / 255.0,
@@ -705,7 +747,7 @@ impl SettingsUi {
                     );
                 
                     if egui::color_picker::color_edit_button_rgba(ui, &mut buff_colour, egui::color_picker::Alpha::Opaque).changed() {
-                        settings.missing_tier_colour = Some([
+                        settings.current_preset.missing_tier_colour = Some([
                             (buff_colour[0] * 255.0).round() as u8,
                             (buff_colour[1] * 255.0).round() as u8,
                             (buff_colour[2] * 255.0).round() as u8,
@@ -737,11 +779,11 @@ impl SettingsUi {
                     ui.label("To modify a player's name or Discord ID, simply click on their name, to copy their current info to the textboxes.");
                     ui.separator();
 
-                    if settings.regulars.is_none() {
-                        settings.regulars = Some(BTreeMap::new());
+                    if settings.current_preset.regulars.is_none() {
+                        settings.current_preset.regulars = Some(BTreeMap::new());
                     }
 
-                    if let Some(regulars) = &mut settings.regulars {
+                    if let Some(regulars) = &mut settings.current_preset.regulars {
                         let mut new_regulars = regulars.clone();
                         for (discord_id, name ) in regulars.iter() {
                             ui.horizontal(|ui| {
@@ -768,7 +810,7 @@ impl SettingsUi {
                             }
                         });
 
-                        settings.regulars = Some(new_regulars);
+                        settings.current_preset.regulars = Some(new_regulars);
                     }
                 });
 

@@ -39,7 +39,13 @@ impl BuffChecker {
         } else {
             raid_saved_check_input.clone()
         };
-    
+
+        let any_rep = raid_saved_check.values().any(|r| latest_expansion.find_raid_by_id(r.id).map_or(false, |raid| raid.reputation.is_some()));
+        if !any_rep {
+            info!("No raids with reputation found in the configuration, skipping buff check.");
+            return Ok(BTreeMap::new());
+        }
+        
         let url = format!("{}/reputation", _url.trim_end_matches('/'));
         let client = Client::new();
         let response_text = client

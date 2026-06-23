@@ -208,7 +208,7 @@ impl RaidHelperCheckerApp{
         }
         if self.expansions.latest_expansion_identifier != expansion_identifier {
             info!("Resetting saved raids data, expansion has changed.");
-            self.settings.required_raids.clear();
+            self.settings.current_preset.required_raids.clear();
         }
 
         self.expansions.latest_expansion_identifier = expansion_identifier.clone();
@@ -327,7 +327,7 @@ impl eframe::App for RaidHelperCheckerApp {
                 let ret = self.raid_questions.ask_questions(ctx, &self.expansions, None, None, &mut self.settings);
                 if ret.is_some() {
                     let (url, boss_kills, player_only) = ret.unwrap();
-                    self.raid_sheet.init(url, player_only.clone(), self.settings.clone(), self.expansions.clone(), self.realms.clone(), self.settings.saved_raids.clone(), self.last_raid.clone());
+                    self.raid_sheet.init(url, player_only.clone(), self.settings.clone(), self.expansions.clone(), self.realms.clone(), self.settings.current_preset.saved_raids.clone(), self.last_raid.clone());
 
                     if player_only != PlayerOnlyCheckType::Player && player_only != PlayerOnlyCheckType::None {
                         self.raid_questions.raid_helper_url = String::new();

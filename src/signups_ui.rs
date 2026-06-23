@@ -72,7 +72,7 @@ impl SignUpsUI {
                                     player.name.clone()
                                 };
 
-                                if settings.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id).is_some() {
+                                if settings.current_preset.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id).is_some() {
                                     label_name = format!("⭐ {}", label_name);
                                 }
 
@@ -118,7 +118,7 @@ impl SignUpsUI {
                                     player.name.clone()
                                 };
 
-                                if settings.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id).is_some() {
+                                if settings.current_preset.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id).is_some() {
                                     label_name = format!("⭐ {}", label_name);
                                 }
 
@@ -149,7 +149,7 @@ impl SignUpsUI {
                 if self.target_player.is_none() {
                     self.draw_summary(ui, settings, primary_people, queued_people);
                 } else {
-                    if self.draw_player_info(ui, settings, expansions, None) == true {
+                    if self.draw_player_info(ui, settings, expansions, &mut None) == true {
                         recheck_player = Some(self.target_player.clone().unwrap());
                     }
                 }
@@ -162,7 +162,7 @@ impl SignUpsUI {
                 .resizable(true)
                 .show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        self.draw_player_info(ui, settings, expansions, checked_player.clone());
+                        self.draw_player_info(ui, settings, expansions, checked_player);
                     });
                     if ui.button("Close").clicked() {
                         *checked_player = None;
@@ -176,7 +176,7 @@ impl SignUpsUI {
     pub fn colour_player_label(&mut self, settings: &mut config::settings::Settings, player: &mut PlayerData, expansions: &ExpansionsConfig) -> egui::Color32 {
         // Check ilvl
         if player.skip_reason.is_some() {
-            let skip_colour = settings.skip_colour.unwrap();
+            let skip_colour = settings.current_preset.skip_colour.unwrap();
             return egui::Color32::from_rgb(skip_colour[0], skip_colour[1], skip_colour[2]);
         }
 
@@ -199,19 +199,19 @@ impl SignUpsUI {
             }
         }
 
-        for prio in settings.check_priority.iter() {
+        for prio in settings.current_preset.check_priority.iter() {
             match prio {
                 PriorityChecks::SavedKills => {
                     for raid in &player.raid_data {
-                        if settings.saved_raids.get(&(*raid.0 as i32)).is_some() {
+                        if settings.current_preset.saved_raids.get(&(*raid.0 as i32)).is_some() {
                             for boss in &raid.1.bosses {
                                 for difficulty in &boss.1.difficulties {
-                                    let saved_difficulty = settings.saved_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
+                                    let saved_difficulty = settings.current_preset.saved_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
                                     if saved_difficulty.is_some() {
                                         if saved_difficulty.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
                                             if difficulty.1.boss_kill_time.is_some() {
                                                 if difficulty.1.boss_kill_time.unwrap() > SavedChecker::get_wednesday_reset_timestamp() as u64 {
-                                                    let saved_colour = settings.saved_colour.unwrap();
+                                                    let saved_colour = settings.current_preset.saved_colour.unwrap();
                                                     return egui::Color32::from_rgb(saved_colour[0], saved_colour[1], saved_colour[2]);
                                                 }
                                             }
@@ -224,22 +224,22 @@ impl SignUpsUI {
                 },
 
                 PriorityChecks::Ilvl => {
-                    if player.ilvl < settings.average_ilvl{
-                        let ilvl_colour = settings.ilvl_colour.unwrap();
+                    if player.ilvl < settings.current_preset.average_ilvl{
+                        let ilvl_colour = settings.current_preset.ilvl_colour.unwrap();
                         return egui::Color32::from_rgb(ilvl_colour[0], ilvl_colour[1], ilvl_colour[2]);
                     }
                 },
 
                 PriorityChecks::Unkilled => {
                     for raid in &player.raid_data {
-                        if settings.required_raids.get(&(*raid.0 as i32)).is_some() {
+                        if settings.current_preset.required_raids.get(&(*raid.0 as i32)).is_some() {
                             for boss in &raid.1.bosses {
                                 for difficulty in &boss.1.difficulties {
-                                    let required_difficulties = settings.required_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
+                                    let required_difficulties = settings.current_preset.required_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
                                     if required_difficulties.is_some() {
                                         if required_difficulties.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
                                             if difficulty.1.killed_before == false {
-                                                let unkilled_colour = settings.unkilled_colour.unwrap();
+                                                let unkilled_colour = settings.current_preset.unkilled_colour.unwrap();
                                                 return egui::Color32::from_rgb(unkilled_colour[0], unkilled_colour[1], unkilled_colour[2]);
                                             }
                                         }
@@ -251,36 +251,36 @@ impl SignUpsUI {
                 },
 
                 PriorityChecks::Enchantments => {
-                    if player.bad_gear.len() > 0 || (player.num_embelishments != -1 && player.num_embelishments < settings.embelishments) {
-                        let bad_gear_colour = settings.bad_gear_colour.unwrap();
+                    if player.bad_gear.len() > 0 || (player.num_embelishments != -1 && player.num_embelishments < settings.current_preset.embelishments) {
+                        let bad_gear_colour = settings.current_preset.bad_gear_colour.unwrap();
                         return egui::Color32::from_rgb(bad_gear_colour[0], bad_gear_colour[1], bad_gear_colour[2]);
                     }
                 },
 
                 PriorityChecks::BadSocket => {
                     if player.bad_socket.len() > 0 {
-                        let bad_socket_colour = settings.bad_socket_colour.unwrap();
+                        let bad_socket_colour = settings.current_preset.bad_socket_colour.unwrap();
                         return egui::Color32::from_rgb(bad_socket_colour[0], bad_socket_colour[1], bad_socket_colour[2]);
                     }
                 }
 
                 PriorityChecks::SpecialItem => {
                     if player.bad_special_item.len() > 0 {
-                        let bad_gear_colour = settings.bad_special_item_colour.unwrap();
+                        let bad_gear_colour = settings.current_preset.bad_special_item_colour.unwrap();
                         return egui::Color32::from_rgb(bad_gear_colour[0], bad_gear_colour[1], bad_gear_colour[2]);
                     }
                 },
 
                 PriorityChecks::RaidBuff => {
                     if player.buff_status.iter().any(|x| x.1.1 > 0) {
-                        let buff_colour: [u8; 4] = settings.buff_colour.unwrap();
+                        let buff_colour: [u8; 4] = settings.current_preset.buff_colour.unwrap();
                         return egui::Color32::from_rgb(buff_colour[0], buff_colour[1], buff_colour[2]);
                     }
                 },
 
                 PriorityChecks::MissingTier => {
                     if player.tier_count != -1 && player.tier_count < 4 {
-                        let tier_colour: [u8; 4] = settings.missing_tier_colour.unwrap();
+                        let tier_colour: [u8; 4] = settings.current_preset.missing_tier_colour.unwrap();
                         return egui::Color32::from_rgb(tier_colour[0], tier_colour[1], tier_colour[2]);
                     }
                 }
@@ -320,10 +320,10 @@ impl SignUpsUI {
         }
     }
 
-    pub fn draw_player_info(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, expansions: &ExpansionsConfig, checked_player: Option<PlayerData>) -> bool {
+    pub fn draw_player_info(&mut self, ui: &mut Ui, settings: &mut config::settings::Settings, expansions: &ExpansionsConfig, checked_player: &mut Option<PlayerData>) -> bool {
 
         let mut should_recheck = false;
-        let player = if checked_player.is_some() {
+        let mut player = if checked_player.is_some() {
             checked_player.clone().unwrap()
         } else {
             if self.target_player.is_some() {
@@ -332,6 +332,19 @@ impl SignUpsUI {
                 return false;
             }
         };
+
+        if settings.dirty_state != player.dirty_state {
+            let (bad_gear, bad_socket, bad_item, embelishments) = GearChecker::check_gear(&player.character, settings, expansions);
+            let pvp_gear = GearChecker::check_pvp_gear(&player.character.gear, expansions);
+            let tier_count = GearChecker::check_tier_pieces(&player.character.gear, expansions);
+            player.bad_gear = bad_gear;
+            player.bad_socket = bad_socket;
+            player.bad_special_item = bad_item;
+            player.num_embelishments = embelishments;
+            player.pvp_gear = pvp_gear;
+            player.tier_count = tier_count;
+            self.target_player = Some(player.clone());
+        }
 
         if player.skip_reason.is_some() {
             ui.label(format!("Skipped processing {}: {}", player.name.clone(), player.skip_reason.unwrap()));
@@ -348,23 +361,23 @@ impl SignUpsUI {
                 should_recheck = true;
             }
 
-            if settings.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id).is_none() && 
+            if settings.current_preset.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id).is_none() && 
                 ui.button("Add regular").on_hover_text("Marks this player as a regular, which will highlight them in the list and show a note on their player info.").clicked() {
-                if settings.regulars.is_none() {
-                    settings.regulars = Some(BTreeMap::new());
+                if settings.current_preset.regulars.is_none() {
+                    settings.current_preset.regulars = Some(BTreeMap::new());
                 }
 
-                if settings.regulars.as_ref().unwrap().get(&player.discord_id).is_some() {
-                    settings.regulars.as_mut().unwrap().remove(&player.discord_id);
+                if settings.current_preset.regulars.as_ref().unwrap().get(&player.discord_id).is_some() {
+                    settings.current_preset.regulars.as_mut().unwrap().remove(&player.discord_id);
                     settings.save_mut();
                 } else {
-                    settings.regulars.as_mut().unwrap().insert(player.discord_id.clone(), player.name.clone());
+                    settings.current_preset.regulars.as_mut().unwrap().insert(player.discord_id.clone(), player.name.clone());
                     settings.save_mut();
                 }
             }
         });
 
-        if let Some(regular) = settings.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id) {
+        if let Some(regular) = settings.current_preset.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id) {
             ui.add(Label::new(egui::RichText::new(format!("This player is marked as a regular ({}).", regular)).color(egui::Color32::from_rgb(255, 255, 0))));
         }
 
@@ -395,8 +408,8 @@ impl SignUpsUI {
             ui.label(egui::RichText::new(format!("{} is level {}! The current max is {}", player.name, player.lvl, max_level)).color(egui::Color32::RED));
         }
 
-        if player.ilvl < settings.average_ilvl {
-            ui.label(format!("{} has an ilvl of {} which is below the average ilvl of {}", player.name.clone(), player.ilvl, settings.average_ilvl));
+        if player.ilvl < settings.current_preset.average_ilvl {
+            ui.label(format!("{} has an ilvl of {} which is below the average ilvl of {}", player.name.clone(), player.ilvl, settings.current_preset.average_ilvl));
 
             if player.pvp_gear {
                 ui.label(egui::RichText::new("This player has PvP gear equipped, which may be the cause of the low ilvl.").color(egui::Color32::YELLOW));
@@ -408,10 +421,10 @@ impl SignUpsUI {
 
         let mut boss_killed: BTreeMap<BossKey, (String, String, Vec<String>)> = BTreeMap::new();
         for raid in &player.raid_data {
-            if settings.required_raids.get(&(*raid.0 as i32)).is_some() {
+            if settings.current_preset.required_raids.get(&(*raid.0 as i32)).is_some() {
                 for boss in &raid.1.bosses {
                     for difficulty in &boss.1.difficulties {
-                        let required_difficulties = settings.required_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
+                        let required_difficulties = settings.current_preset.required_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
                         if required_difficulties.is_some() {
                             if required_difficulties.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
                                 if difficulty.1.killed_before == false {
@@ -446,10 +459,10 @@ impl SignUpsUI {
 
         let mut saved_bosses: BTreeMap<BossKey, (String, String, Vec<String>, u64)> = BTreeMap::new();
         for raid in &player.raid_data {
-            if settings.saved_raids.get(&(*raid.0 as i32)).is_some() {
+            if settings.current_preset.saved_raids.get(&(*raid.0 as i32)).is_some() {
                 for boss in &raid.1.bosses {
                     for difficulty in &boss.1.difficulties {
-                        let saved_difficulty = settings.saved_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
+                        let saved_difficulty = settings.current_preset.saved_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
                         if saved_difficulty.is_some() {
                             if saved_difficulty.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
                                 if difficulty.1.boss_kill_time.is_some() {
@@ -486,7 +499,7 @@ impl SignUpsUI {
             ui.label("");
         }
 
-        let gear_issue = player.bad_gear.len() > 0 || player.bad_socket.len() > 0 || player.bad_special_item.len() > 0 || (player.num_embelishments != -1 && player.num_embelishments < settings.embelishments);
+        let gear_issue = player.bad_gear.len() > 0 || player.bad_socket.len() > 0 || player.bad_special_item.len() > 0 || (player.num_embelishments != -1 && player.num_embelishments < settings.current_preset.embelishments);
         if gear_issue {
             ui.label(format!("{} has gear that does not meet the requirements:", player.name.clone()));
         }
@@ -498,7 +511,7 @@ impl SignUpsUI {
         }
 
         if player.bad_special_item.len() > 0 {
-            let special_item_colour = settings.bad_special_item_colour.unwrap();
+            let special_item_colour = settings.current_preset.bad_special_item_colour.unwrap();
             for gear in player.bad_special_item.iter() {
                 ui.label(egui::RichText::new(format!("\t{}", gear)).color(egui::Color32::from_rgb(special_item_colour[0], special_item_colour[1], special_item_colour[2])));
             }
@@ -510,8 +523,8 @@ impl SignUpsUI {
             }
         }
 
-        if player.num_embelishments != -1 && player.num_embelishments < settings.embelishments {
-            ui.label(egui::RichText::new(format!("{} is missing {} embelishments", player.name.clone(), settings.embelishments - player.num_embelishments)).color(egui::Color32::from_rgb(255, 0, 0)));
+        if player.num_embelishments != -1 && player.num_embelishments < settings.current_preset.embelishments {
+            ui.label(egui::RichText::new(format!("{} is missing {} embelishments", player.name.clone(), settings.current_preset.embelishments - player.num_embelishments)).color(egui::Color32::from_rgb(255, 0, 0)));
         }
         
         if gear_issue {
