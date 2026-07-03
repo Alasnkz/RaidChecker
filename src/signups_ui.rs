@@ -85,16 +85,6 @@ impl SignUpsUI {
                         });
                     });
                 }
-
-                if primary_players.len() > 0 {
-                    ui.heading(egui::RichText::new("Recheck needed for new headers!").color(egui::Color32::YELLOW));
-                    ui.heading("Primary People");
-                }
-                for player in primary_players.iter_mut() {
-                    if ui.label(egui::RichText::new(player.name.clone()).color(self.colour_player_label(settings, player, expansions))).clicked() {
-                        self.target_player = Some(player.clone());
-                    }
-                }
                 
                 if queued_people.len() > 0 {
                     ui.label("");
@@ -130,16 +120,6 @@ impl SignUpsUI {
                             }
                         });
                     });
-                }
-
-                if queued_players.len() > 0 {
-                    ui.heading(egui::RichText::new("Recheck needed for new headers!").color(egui::Color32::YELLOW));
-                }
-
-                for player in queued_players.iter_mut() {
-                    if ui.label(egui::RichText::new(player.name.clone()).color(self.colour_player_label(settings, player, expansions))).clicked() {
-                        self.target_player = Some(player.clone());
-                    }
                 }
             });
         });

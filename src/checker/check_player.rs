@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, sync::mpsc::{Receiver, Sender}};
+use std::sync::{Arc, Mutex}; 
+use std::sync::mpsc::{Receiver, Sender}; 
+
+
+use std::{collections::BTreeMap};
 
 use regex::Regex;
 use reqwest::blocking::Client;
@@ -105,10 +109,16 @@ enum SearchPromptResult {
 }
 
 impl PlayerChecker {
-    pub fn check_player(player: &Player, thread_sender: &Sender<RaidHelperCheckerStatus>, thread_reciever: &Receiver<RaidHelperUIStatus>,
-        settings: &config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig, realms: &config::realms::RealmJson,
-        raid_saved_check: &BTreeMap<i32, RequiredRaid>, char_url: Option<String>) -> Option<PlayerData>
-    {
+    pub fn check_player(
+        player: &Player, 
+        thread_sender: &Sender<RaidHelperCheckerStatus>, 
+        thread_receiver: &Arc<Mutex<Receiver<RaidHelperUIStatus>>>, // Changed to Arc<Mutex<...>>
+        settings: &config::settings::Settings, 
+        expansions: &config::expansion_config::ExpansionsConfig, 
+        realms: &config::realms::RealmJson,
+        raid_saved_check: &BTreeMap<i32, RequiredRaid>, 
+        char_url: Option<String>
+    ) -> Option<PlayerData> {
         let mut armory_data = None;
 
         let mut url = String::default();
@@ -128,7 +138,31 @@ impl PlayerChecker {
             _ => player.roleName.as_ref().unwrap_or(&String::new()).to_string().to_lowercase()
         };
 
-        // Check to see if the character's character is a real one.
+        let basic_player_data = PlayerData {
+            discord_id: player.userId.clone(),
+            name: player.name.clone(),
+            status: player.status.clone(),
+            bad_gear: Vec::new(),
+            bad_socket: Vec::new(),
+            bad_special_item: Vec::new(),
+            character: ArmoryCharacter::default(),
+            num_embelishments: -1,
+            ilvl: 0,
+            lvl: 0,
+            raid_data: BTreeMap::new(),
+            aotc_status: BTreeMap::new(),
+            buff_status: BTreeMap::new(),
+            tier_count: -1,
+            pvp_gear: false,
+            skip_reason: Some("Skipped by user.".to_owned()),
+            armory_url: "".to_owned(),
+            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
+            confirmed: 0,
+            class_name: player.className.clone().to_lowercase(),
+            role_name: role_name,
+            dirty_state: -1
+        };
+
         let processed_name = process_name(&player.name);
         let is_some = processed_name.is_some();
         if let Some(name) = processed_name {
@@ -140,121 +174,49 @@ impl PlayerChecker {
             } 
 
             if armory_data.is_none() {
-
-                let search_response = Self::search_prompt(&name.1.clone(), Some(player), thread_sender, thread_reciever, Some(max_level));
+                let search_response = Self::search_prompt(&name.1.clone(), Some(player), thread_sender, thread_receiver, Some(max_level));
                 match search_response {
                     SearchPromptResult::Url(search_url) => {
                         url = search_url;
                         armory_data = ArmoryChecker::check_armory(&url.clone());
                     },
-
                     SearchPromptResult::Skipped => {
-                        return Some(PlayerData {
-                            discord_id: player.userId.clone(),
-                            name: player.name.clone(),
-                            status: player.status.clone(),
-                            bad_gear: Vec::new(),
-                            bad_socket: Vec::new(),
-                            bad_special_item: Vec::new(),
-                            character: ArmoryCharacter::default(),
-                            num_embelishments: -1,
-                            ilvl: 0,
-                            lvl: 0,
-                            raid_data: BTreeMap::new(),
-                            aotc_status: BTreeMap::new(),
-                            buff_status: BTreeMap::new(),
-                            tier_count: -1,
-                            pvp_gear: false,
-                            skip_reason: Some("Skipped by user.".to_owned()),
-                            armory_url: "".to_owned(),
-                            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
-                            confirmed: 0,
-                            class_name: player.className.clone().to_lowercase(),
-                            role_name: role_name,
-                            dirty_state: -1
-                        });
+                        return Some(basic_player_data);
                     },
-
                     _ => {}
                 }
             }
         }
 
         if armory_data.is_none() && is_some {
-            // Add a thing to say this was auto searched if it auto selects?
-            let search_response = Self::search_prompt(&player.name, Some(player), thread_sender, thread_reciever, Some(max_level));
+            let search_response = Self::search_prompt(&player.name, Some(player), thread_sender, thread_receiver, Some(max_level));
             match search_response {
                 SearchPromptResult::Url(search_url) => {
                     url = search_url;
                     armory_data = ArmoryChecker::check_armory(&url.clone());
                 },
-
                 SearchPromptResult::Skipped => {
-                    return Some(PlayerData {
-                        discord_id: player.userId.clone(),
-                        name: player.name.clone(),
-                        status: player.status.clone(),
-                        bad_gear: Vec::new(),
-                        bad_socket: Vec::new(),
-                        bad_special_item: Vec::new(),
-                        character: ArmoryCharacter::default(),
-                        num_embelishments: -1,
-                        ilvl: 0,
-                        lvl: 0,
-                        raid_data: BTreeMap::new(),
-                        aotc_status: BTreeMap::new(),
-                        buff_status: BTreeMap::new(),
-                        tier_count: -1,
-                        pvp_gear: false,
-                        skip_reason: Some("Skipped by user.".to_owned()),
-                        armory_url: "".to_owned(),
-                        queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
-                        confirmed: 0,
-                        class_name: player.className.clone().to_lowercase(),
-                        role_name: role_name,
-                        dirty_state: -1
-                    });
+                    return Some(basic_player_data);
                 },
-
                 _ => return None
             }
         }
 
         if armory_data.is_none() {
-            let name = Self::prompt_for_name(Some(player), thread_sender, thread_reciever, false);
+            let name = {
+                let rx = thread_receiver.lock().unwrap();
+                info!("Locking for receiver to prompt for name for player: {}", player.name);
+                Self::prompt_for_name(Some(player), thread_sender, &*rx, false)
+            };
             if name.is_some() {
-                let search_response = Self::search_prompt(&name.clone().unwrap(), Some(player), thread_sender, thread_reciever, Some(max_level));
+                let search_response = Self::search_prompt(&name.clone().unwrap(), Some(player), thread_sender, thread_receiver, Some(max_level));
                 match search_response {
                     SearchPromptResult::Url(search_url) => {
                         url = search_url;
                         armory_data = ArmoryChecker::check_armory(&url.clone());
                     },
-
                     SearchPromptResult::Skipped => {
-                        return Some(PlayerData {
-                            discord_id: player.userId.clone(),
-                            name: player.name.clone(),
-                            status: player.status.clone(),
-                            bad_gear: Vec::new(),
-                            bad_socket: Vec::new(),
-                            bad_special_item: Vec::new(),
-                            character: ArmoryCharacter::default(),
-                            num_embelishments: -1,
-                            ilvl: 0,
-                            lvl: 0,
-                            raid_data: BTreeMap::new(),
-                            aotc_status: BTreeMap::new(),
-                            buff_status: BTreeMap::new(),
-                            tier_count: -1,
-                            pvp_gear: false,
-                            skip_reason: Some("Skipped by user.".to_owned()),
-                            armory_url: "".to_owned(),
-                            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench",
-                            confirmed: 0,
-                            class_name: player.className.clone().to_lowercase(),
-                            role_name: role_name,
-                            dirty_state: -1
-                        });
+                        return Some(basic_player_data);
                     }
                     _ => return None
                 }
@@ -267,11 +229,9 @@ impl PlayerChecker {
         let mut raid_data: BTreeMap<usize, PlayerRaidData> = BTreeMap::new();
         let data = armory_data.unwrap();
         ArmoryChecker::check_raid_boss_kills(&data, &mut raid_data);
-        info!("Character has {} ilvl", data.character.average_item_level);
         let ilvl = data.character.average_item_level;
         SavedChecker::check_bosses(&data, &mut raid_data);
         let aotc_report = ProgressChecker::check_aotc(url.clone(), &data, expansions, &raid_saved_check);
-        info!("--- END AOTC CHECK ---");
         let buff_status = BuffChecker::check_raids(url.clone(), expansions, &raid_saved_check);
         let buff_status = if buff_status.is_err() {
             BTreeMap::new()
@@ -312,7 +272,12 @@ impl PlayerChecker {
         })
     }
 
-    fn prompt_for_name(player: Option<&Player>, thread_sender: &Sender<RaidHelperCheckerStatus>, thread_reciever: &Receiver<RaidHelperUIStatus>, low_level: bool) -> Option<String> {
+    fn prompt_for_name(
+        player: Option<&Player>, 
+        thread_sender: &Sender<RaidHelperCheckerStatus>, 
+        receiver: &Receiver<RaidHelperUIStatus>, 
+        low_level: bool
+    ) -> Option<String> {
         if player.is_some() {
             let string = if low_level == true {
                 format!("Found a character for {} (signed as spec {}) but they are a low level character!\n\nPlease input a name for this character...", player.unwrap().name, player.unwrap().specName.clone().unwrap_or("Unknown".to_string()))
@@ -325,15 +290,19 @@ impl PlayerChecker {
             let _ = thread_sender.send(RaidHelperCheckerStatus::QuestionStringSkip(format!("Please input a name for this character..."))).unwrap();
         }
         
-        match thread_reciever.recv().unwrap() {
-            RaidHelperUIStatus::AnswerStringSkip(answer) => {
-                answer
-            },
+        match receiver.recv().unwrap() {
+            RaidHelperUIStatus::AnswerStringSkip(answer) => answer,
             _ => None
         }
     }
 
-    fn search_prompt(name: &String, player: Option<&Player>, thread_sender: &Sender<RaidHelperCheckerStatus>, thread_reciever: &Receiver<RaidHelperUIStatus>, max_level: Option<u8>) -> SearchPromptResult {
+    fn search_prompt(
+        name: &String, 
+        player: Option<&Player>, 
+        thread_sender: &Sender<RaidHelperCheckerStatus>, 
+        thread_receiver: &Arc<Mutex<Receiver<RaidHelperUIStatus>>>, 
+        max_level: Option<u8>
+    ) -> SearchPromptResult {
         let url = format!("https://worldofwarcraft.blizzard.com/en-gb/search?q={}", name);
         let client = Client::new();
         let mut low_level = false;
@@ -364,7 +333,12 @@ impl PlayerChecker {
 
             let name = element.select(&name_selector).next().map(|n| n.text().collect::<Vec<_>>().join(" ")).unwrap_or_default();
             let mut level = element.select(&level_selector).next().map(|l| l.text().collect::<Vec<_>>().join(" ")).unwrap_or_default();
-            let class = level.split_off(level.find(" ").expect("Couldn't get class."));
+            
+            let class = if let Some(idx) = level.find(" ") {
+                level.split_off(idx)
+            } else {
+                String::new()
+            };
             let realm = element.select(&realm_selector).next().map(|r| r.text().collect::<Vec<_>>().join(" ")).unwrap_or_default();
 
             let fixed_href = ("https://worldofwarcraft.blizzard.com/en-gb".to_owned() + href).trim_end_matches('/').to_string();
@@ -378,30 +352,40 @@ impl PlayerChecker {
         }
 
         if chars.len() == 1 {
-            // TODO: Automatic selection alert!
             return SearchPromptResult::Url(chars.last().unwrap().1.clone());
         } else if chars.is_empty() {
-            let name = Self::prompt_for_name(player, thread_sender, thread_reciever, low_level);
+            let name = {
+                let rx = thread_receiver.lock().unwrap();
+                info!("Locking for receiver to prompt for name for player: {}", name);
+                Self::prompt_for_name(player, thread_sender, &*rx, low_level)
+            };
             if name.is_some() {
-                return Self::search_prompt(&name.clone().unwrap(), player, thread_sender, thread_reciever, max_level);
+                return Self::search_prompt(&name.clone().unwrap(), player, thread_sender, thread_receiver, max_level);
             }
             return SearchPromptResult::Skipped;
         }
 
         let spec = match player {
-            Some(p) => Some(p.specName.clone().unwrap()),
+            Some(p) => p.specName.clone(),
             None => None
         };
+
+        let rx = thread_receiver.lock().unwrap();
+        info!("Locking for receiver to search for name for player: {}", name);
         let _ = thread_sender.send(RaidHelperCheckerStatus::Search((name.clone(), spec, chars))).unwrap();
-        let name_url = match thread_reciever.recv().unwrap() {
-            RaidHelperUIStatus::SearchResponse(answer) => {
-                answer
-            },
+        
+        let name_url = match rx.recv().unwrap() {
+            RaidHelperUIStatus::SearchResponse(answer) => Some(answer),
 
             RaidHelperUIStatus::SearchResponseNewName() => {
-                let name = Self::prompt_for_name(None, thread_sender, thread_reciever, false);
+                let name = Self::prompt_for_name(None, thread_sender, &*rx, false);
+                drop(rx);
                 if name.is_some() {
-                    return Self::search_prompt(&name.clone().unwrap(), player, thread_sender, thread_reciever, max_level);
+                    match Self::search_prompt(&name.unwrap(), player, thread_sender, thread_receiver, max_level) {
+                        SearchPromptResult::Url(url) => return SearchPromptResult::Url(url),
+                        SearchPromptResult::Skipped => return SearchPromptResult::Skipped,
+                        SearchPromptResult::Error(err) => return SearchPromptResult::Error(err),
+                    }
                 }
                 None
             },
@@ -412,14 +396,10 @@ impl PlayerChecker {
             _ => None
         };
 
-        if !name_url.is_some() {
+        if name_url.is_none() {
             return SearchPromptResult::Skipped;
         }
-
-        if name_url.is_some() {
-            return SearchPromptResult::Url(name_url.unwrap().1);
-        }
         
-        SearchPromptResult::Url(name_url.unwrap().1)
+        SearchPromptResult::Url(name_url.unwrap().unwrap().1)
     }
 }

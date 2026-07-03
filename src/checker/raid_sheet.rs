@@ -1,8 +1,11 @@
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::Receiver; 
 use regex::Regex;
 use reqwest::{blocking::Client, header::{ACCEPT, ACCEPT_ENCODING, ACCEPT_LANGUAGE, CONNECTION, HeaderMap, HeaderValue, USER_AGENT}};
 use serde_json::{Deserializer, Value, from_value};
 use tracing::info;
-use std::{collections::BTreeMap, fs::File, io::{Read, Write}, sync::mpsc::{self, Receiver, Sender}, thread};
+use std::{collections::BTreeMap, fs::File, io::{Read, Write}, sync::{atomic::{AtomicUsize, Ordering}, mpsc::{self, Sender}}, thread};
+use rayon::{ThreadPoolBuilder, prelude::*};
 
 use crate::{checker::armory_checker::ArmoryCharacter, config::{self, last_raid::LastRaid, settings::RequiredRaid}};
 
@@ -189,6 +192,8 @@ impl RaidSheet {
         self.ui_reciever = uir;
         self.state = RaidSheetState::Init;
 
+        let thread_receiver = Arc::new(Mutex::new(thread_reciever));
+
         if is_player_only != PlayerOnlyCheckType::None {
             thread::spawn(move || {
                 let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("player {}", url.clone())));
@@ -210,7 +215,7 @@ impl RaidSheet {
                     }
                 }
 
-                let player_data = PlayerChecker::check_player(&player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, None);
+                let player_data = PlayerChecker::check_player(&player, &thread_sender, &thread_receiver, &settings, &expansions, &realms, &raid_saved_check, None);
                 if player_data.is_some() {
                     if let PlayerOnlyCheckType::PlayerFromSheet(data) = is_player_only {
                         let _ = thread_sender.send(RaidHelperCheckerStatus::PlayerResultSheet(player_data.unwrap(), data));                        
@@ -224,6 +229,8 @@ impl RaidSheet {
             return;
         }
 
+
+        
 
         thread::spawn(move || {
             let client = Client::builder()
@@ -249,7 +256,6 @@ impl RaidSheet {
             }
 
             let raid_response = raid_response_res.unwrap();
-            let mut count = 1;
 
             if last_raid.raid_url != url {
                 last_raid.raid_url = String::new();
@@ -259,49 +265,74 @@ impl RaidSheet {
             let mut viable: Vec<&Player> = raid_response.signUps.iter().filter(|x| should_check_player(x)).collect();
             viable.sort_by(|a, b| a.position.partial_cmp(&b.position).unwrap());
 
-            let mut vec_player = Vec::new();
+            
+            let total_players = viable.len();
+            
+            let pool = ThreadPoolBuilder::new()
+                .num_threads(3)
+                .build()
+                .expect("Failed to build thread pool");
 
-            for player in viable.iter() {
-                let player_url = if last_raid.players.iter().find(|x| x.discord_id == player.userId && x.name == player.name).is_some() {
-                    Some(last_raid.players.iter().find(|x| x.discord_id == player.userId).unwrap().armory_url.clone())
-                } else {
-                    None
-                };
+            let count = Arc::new(AtomicUsize::new(0));
 
-                let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!("{} {}/{}", player.name, count, viable.len())));
-                let player_data = PlayerChecker::check_player(player, &thread_sender, &thread_reciever, &settings, &expansions, &realms, &raid_saved_check, player_url);
 
-                if player_data.is_some() {
-                    vec_player.push(player_data.unwrap());
-                } else {
-                    vec_player.push(PlayerData {
-                        discord_id: player.userId.clone(),
-                        name: player.name.clone(),
-                        status: player.status.clone(),
-                        raid_data: BTreeMap::new(),
-                        bad_gear: Vec::new(),
-                        bad_socket: Vec::new(),
-                        bad_special_item: Vec::new(),
-                        character: ArmoryCharacter::default(),
-                        num_embelishments: -1,
-                        ilvl: 0,
-                        lvl: 0,
-                        aotc_status: BTreeMap::new(),
-                        buff_status: BTreeMap::new(),
-                        tier_count: -1,
-                        pvp_gear: false,
-                        skip_reason: Some("Could not find player".to_owned()),
-                        armory_url: "".to_owned(),
-                        queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" ,
-                        confirmed: 0,
-                        class_name: player.className.clone().to_lowercase(),
-                        role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase(),
-                        dirty_state: -1
-                    });
-                }
-                
-                count += 1;
-            }
+            let mut players_data: Vec<PlayerData> = pool.install(|| {
+                viable
+                    .par_iter()
+                    .map(|player| {
+                        let current_count = count.fetch_add(1, Ordering::SeqCst) + 1;
+                        
+                        let _ = thread_sender.send(RaidHelperCheckerStatus::Checking(format!(
+                            "{} {}/{}", 
+                            player.name, 
+                            current_count, 
+                            total_players
+                        )));
+            
+                        let player_url = if last_raid.players.iter().any(|x| x.discord_id == player.userId && x.name == player.name) {
+                            Some(last_raid.players.iter().find(|x| x.discord_id == player.userId).unwrap().armory_url.clone())
+                        } else {
+                            None
+                        };
+            
+                        let ret = PlayerChecker::check_player(
+                            player, 
+                            &thread_sender, 
+                            &thread_receiver, 
+                            &settings, 
+                            &expansions, 
+                            &realms, 
+                            &raid_saved_check, 
+                            player_url
+                        ).unwrap_or(PlayerData {
+                            discord_id: player.userId.clone(),
+                            name: player.name.clone(),
+                            status: player.status.clone(),
+                            raid_data: BTreeMap::new(),
+                            bad_gear: Vec::new(),
+                            bad_socket: Vec::new(),
+                            bad_special_item: Vec::new(),
+                            character: ArmoryCharacter::default(),
+                            num_embelishments: -1,
+                            ilvl: 0,
+                            lvl: 0,
+                            aotc_status: BTreeMap::new(),
+                            buff_status: BTreeMap::new(),
+                            tier_count: -1,
+                            pvp_gear: false,
+                            skip_reason: Some("Could not find player".to_owned()),
+                            armory_url: "".to_owned(),
+                            queued: player.status.to_lowercase() != "primary" || player.className.to_lowercase() == "bench" ,
+                            confirmed: 0,
+                            class_name: player.className.clone().to_lowercase(),
+                            role_name: player.roleName.clone().unwrap_or("".to_string()).to_lowercase(),
+                            dirty_state: -1
+                        });
+
+                        ret
+                    })
+                    .collect()
+            });
 
             let sheet_type = if raid_response.templateId.unwrap_or("N/A".to_string()) == "wowretail1" {
                 RaidSheetType::Classes
@@ -319,7 +350,7 @@ impl RaidSheet {
                 if raid_plan.is_ok() {
                     let raid_plan = raid_plan.unwrap();
                     for slot in raid_plan.slots.iter() {
-                        if let Some(player_data) = vec_player.iter_mut().find(|x| x.discord_id == slot.id) {
+                        if let Some(player_data) = players_data.iter_mut().find(|x| x.discord_id == slot.id) {
                             if slot.isConfirmed.to_lowercase() == "confirmed" {
                                 player_data.confirmed = RAID_PLAN_CONFIRMED;
                             } else if slot.isConfirmed.to_lowercase() == "cancelled" {
@@ -332,7 +363,7 @@ impl RaidSheet {
                 }
             }
             
-            last_raid.players = vec_player.clone();
+            last_raid.players = players_data.clone();
             last_raid.raid_url = url.clone();
             last_raid.raid_name = raid_response.name.clone();
             last_raid.raid_id = raid_response.id.clone();
@@ -343,7 +374,7 @@ impl RaidSheet {
                 raid_name: raid_response.name,
                 raid_id: raid_response.id,
                 sheet_type: sheet_type,
-                players: vec_player,
+                players: players_data,
             }));
        });
     }
@@ -394,6 +425,13 @@ impl RaidSheet {
         }
     }
 
+    pub fn is_interactive_state(&self) -> bool {
+        match self.state {
+            RaidSheetState::Search(_) | RaidSheetState::Question(_) | RaidSheetState::QuestionStringSkip(_) => true,
+            _ => false
+        }
+    }
+    
     pub fn draw(&mut self, ctx: &egui::Context, last_raid: &mut config::last_raid::LastRaid, just_checked: &mut bool,
         checked_player: &mut Option<PlayerData>) {
 
@@ -411,7 +449,9 @@ impl RaidSheet {
                 },
 
                 RaidHelperCheckerStatus::Checking(msg) => {
-                    self.state = RaidSheetState::Checking(msg);
+                    if !self.is_interactive_state() {
+                        self.state = RaidSheetState::Checking(msg);
+                    }
                 },
 
                 RaidHelperCheckerStatus::Search(msg) => {
@@ -426,7 +466,6 @@ impl RaidSheet {
                 RaidHelperCheckerStatus::QuestionStringSkip(msg) => {
                     self.state = RaidSheetState::QuestionStringSkip(msg);
                     self.question_string = String::default();
-                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
                 },
 
                 RaidHelperCheckerStatus::CheckResults(results) => {

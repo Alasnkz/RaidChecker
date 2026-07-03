@@ -142,6 +142,10 @@ fn default_i64() -> i64 {
     0
 }
 
+fn base_ilvl_default() -> i32 {
+    200
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Expansion {
     pub name: String,
@@ -153,6 +157,8 @@ pub struct Expansion {
     pub seasons: Vec<ExpansionSeasons>,
     #[serde(default="default_i64")]
     pub expansion_start: i64,
+    #[serde(default="base_ilvl_default")]
+    pub base_ilvl: i32,
     #[serde(skip)]
     pub latest_season: Option<ExpansionSeasons>,
 }
@@ -174,6 +180,7 @@ impl Default for Expansion {
             gear_embelishment_bonus_id: -1,
             slot_data: Vec::new(),
             seasons: Vec::new(),
+            base_ilvl: 200,
             max_lvl: 100,
             latest_season: None,
         }

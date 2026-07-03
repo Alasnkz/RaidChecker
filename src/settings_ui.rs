@@ -163,7 +163,8 @@ impl SettingsUi {
         let latest_expansion = expansions.latest_expansion.clone().unwrap();
         let current_season = latest_expansion.latest_season.clone();
         let mut max_ilvl = current_season.as_ref().map_or(1000, |s| s.max_ilvl);
-        if max_ilvl == -1 {
+        let base_ilvl = latest_expansion.base_ilvl;
+        if max_ilvl == -1 || base_ilvl > max_ilvl {
             max_ilvl = 1000;
         }
 
@@ -174,7 +175,7 @@ impl SettingsUi {
             .resizable(false)
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
-                    ui.add(egui::Slider::new(&mut settings.current_preset.average_ilvl, 0..=max_ilvl).text("Average item level required"));
+                    ui.add(egui::Slider::new(&mut settings.current_preset.average_ilvl, base_ilvl..=max_ilvl).text("Average item level required"));
                     ui.add(egui::Slider::new(&mut settings.current_preset.embelishments, 0..=2).text("Embelishments required"));
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         for item in settings.current_preset.slots.as_array_mut().iter_mut() {

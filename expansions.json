@@ -1,7 +1,7 @@
 {
-  "rhcu_version": "2.0.5",
-  "modified": 1782156588,
-  "changes": "Bugfix for Legs not checking correctly.",
+  "rhcu_version": "2.0.9",
+  "modified": 1783085255,
+  "changes": "Season 2 initial support",
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
@@ -499,6 +499,7 @@
       "reputation_slug": "midnight",
       "max_lvl": 90,
       "gear_embelishment_bonus_id": 8960,
+      "base_ilvl": 200,
       "slot_data": [
         {
           "slot": "head",
@@ -851,6 +852,93 @@
             13447, 13448, 13449
           ],
           "max_ilvl": 298
+        },
+
+        {
+          "seasonal_identifier": "Season 2",
+          "season_start": 1787108400,
+          "raids": [
+            {
+              "identifier": "The Tidebound Grotto",
+              "difficulty": [
+                {
+                  "difficulty_name": "World",
+                  "id": 0
+                },
+                {
+                  "difficulty_name": "Normal",
+                  "id": 1
+                },
+                {
+                  "difficulty_name": "Heroic",
+                  "id": 2
+                },
+                {
+                  "difficulty_name": "Mythic",
+                  "id": 3
+                }
+              ],
+              "id": 4,
+              "boss_names": [
+                "Nymrissa Wavecaller"
+              ]
+            },
+
+            {
+              "identifier": "The Venomous Abyss",
+              "difficulty": [
+                {
+                  "difficulty_name": "Looking for Raid",
+                  "id": 0
+                },
+                {
+                  "difficulty_name": "Normal",
+                  "id": 1
+                },
+                {
+                  "difficulty_name": "Heroic",
+                  "id": 2
+                },
+                {
+                  "difficulty_name": "Mythic",
+                  "id": 3
+                }
+              ],
+              "id": 5,
+              "boss_names": [
+                "Nek'zali the Soulcoiler",
+                "Entombed Sentinels",
+                "Vashnik the Malignant",
+                "The Lost Explorers",
+                "Sszorak",
+                "The Twin Fangs",
+                "The Coiled Altar",
+                "Ula'tek"
+              ]
+            }
+          ],
+
+          "tier_gear_ids": [
+            271477, 271472, 271473, 271475, 271474,
+            271535, 271536, 271540, 271537, 271538,
+            271529, 271528, 271527, 271531, 271526,
+            271504, 271502, 271500, 271501, 271499,
+            271490, 271492, 271495, 271491, 271493,
+            271564, 271562, 271565, 271563, 271567,
+            271519, 271518, 271517, 271522, 271520,
+            271465, 271464, 271468, 271463, 271466,
+            271555, 271558, 271553, 271554, 271556,
+            271509, 271510, 271513, 271511, 271508,
+            271483, 271486, 271481, 271484, 271482,
+            271546, 271544, 271547, 271549, 271545,
+            271455, 271459, 271454, 271456, 271457
+          ],
+
+          "pvp_bonus_ids": [
+            13447, 13448, 13449, 13853, 13854, 13855, 13856
+          ],
+
+          "max_ilvl": 340
         }
       ]
     },
