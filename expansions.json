@@ -1,6 +1,6 @@
 {
   "rhcu_version": "2.0.9",
-  "modified": 1785295084,
+  "modified": 1785295255,
   "changes": "Season 2 support (activation: August 12th)",
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
@@ -914,7 +914,11 @@
                 "The Twin Fangs",
                 "The Coiled Altar",
                 "Ula'tek"
-              ]
+              ],
+              "achievements": {
+                "aotc": 63650,
+                "ce": 63651
+              }
             }
           ],
 
