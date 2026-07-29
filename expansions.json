@@ -1,7 +1,7 @@
 {
   "rhcu_version": "2.0.9",
-  "modified": 1783085255,
-  "changes": "Season 2 initial support",
+  "modified": 1785295084,
+  "changes": "Season 2 support (activation: August 12th)",
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
@@ -856,7 +856,7 @@
 
         {
           "seasonal_identifier": "Season 2",
-          "season_start": 1787108400,
+          "season_start": 1786503600,
           "raids": [
             {
               "identifier": "The Tidebound Grotto",
@@ -908,8 +908,8 @@
               "boss_names": [
                 "Nek'zali the Soulcoiler",
                 "Entombed Sentinels",
-                "Vashnik the Malignant",
                 "The Lost Explorers",
+                "Vashnik the Malignant",
                 "Sszorak",
                 "The Twin Fangs",
                 "The Coiled Altar",
