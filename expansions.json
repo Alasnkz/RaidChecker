@@ -1,6 +1,6 @@
 {
   "rhcu_version": "2.0.9",
-  "modified": 1785295255,
+  "modified": 1787133251,
   "changes": "Season 2 support (activation: August 12th)",
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
@@ -859,32 +859,6 @@
           "season_start": 1786503600,
           "raids": [
             {
-              "identifier": "The Tidebound Grotto",
-              "difficulty": [
-                {
-                  "difficulty_name": "World",
-                  "id": 0
-                },
-                {
-                  "difficulty_name": "Normal",
-                  "id": 1
-                },
-                {
-                  "difficulty_name": "Heroic",
-                  "id": 2
-                },
-                {
-                  "difficulty_name": "Mythic",
-                  "id": 3
-                }
-              ],
-              "id": 4,
-              "boss_names": [
-                "Nymrissa Wavecaller"
-              ]
-            },
-
-            {
               "identifier": "The Venomous Abyss",
               "difficulty": [
                 {
@@ -904,7 +878,7 @@
                   "id": 3
                 }
               ],
-              "id": 5,
+              "id": 4,
               "boss_names": [
                 "Nek'zali the Soulcoiler",
                 "Entombed Sentinels",
