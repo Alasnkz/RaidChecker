@@ -188,7 +188,7 @@ impl SignUpsUI {
                                 for difficulty in &boss.1.difficulties {
                                     let saved_difficulty = settings.current_preset.saved_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
                                     if saved_difficulty.is_some() {
-                                        if saved_difficulty.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
+                                        if saved_difficulty.unwrap().boss_ids.contains(&(boss.1.boss_id as i32)) {
                                             if difficulty.1.boss_kill_time.is_some() {
                                                 if difficulty.1.boss_kill_time.unwrap() > SavedChecker::get_wednesday_reset_timestamp() as u64 {
                                                     let saved_colour = settings.current_preset.saved_colour.unwrap();
@@ -444,7 +444,7 @@ impl SignUpsUI {
                     for difficulty in &boss.1.difficulties {
                         let saved_difficulty = settings.current_preset.saved_raids.get(&(*raid.0 as i32)).unwrap().difficulty.get(&(*difficulty.0 as i32));
                         if saved_difficulty.is_some() {
-                            if saved_difficulty.unwrap().boss_ids.get(boss.1.boss_id).is_some() {
+                            if saved_difficulty.unwrap().boss_ids.contains(&(boss.1.boss_id as i32)) {
                                 if difficulty.1.boss_kill_time.is_some() {
                                     if difficulty.1.boss_kill_time.unwrap() > SavedChecker::get_wednesday_reset_timestamp() as u64 {
                                         let status = saved_bosses.entry(BossKey { raid_id: *raid.0, boss_id: boss.1.boss_id }).or_default();

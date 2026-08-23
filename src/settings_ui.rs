@@ -28,7 +28,7 @@ impl SettingsUi {
             draw_priority: false,
             colour_settings: false,
             regular_settings: false,
-            current_raid_id: 0,
+            current_raid_id: -1,
             current_raid_difficulty: 1,
 
             priority_name_str: String::default(),
@@ -39,6 +39,11 @@ impl SettingsUi {
 
     pub fn render(&mut self, ctx: &egui::Context, settings: &mut config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig) -> bool {
         let mut close: bool = false;
+
+        if self.current_raid_id == -1 {
+            self.current_raid_id = expansions.latest_expansion.as_ref().and_then(|e| e.latest_season.as_ref().and_then(|s| s.raids.last().map(|r| r.id))).unwrap_or(-1);
+        }
+        
         egui::Window::new("Settings")
             .collapsible(false)
             .resizable(false)
@@ -457,7 +462,7 @@ impl SettingsUi {
                             }
                         });
 
-                    if settings.current_preset.saved_raids.get(&self.current_raid_id).is_none() {
+                    if settings.current_preset.saved_raids.get(&self.current_raid_id).is_none() && self.current_raid_id != -1 {
                         settings.current_preset.saved_raids.insert(self.current_raid_id, RequiredRaid {
                             id: self.current_raid_id,
                             difficulty: BTreeMap::new(),
