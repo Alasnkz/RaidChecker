@@ -167,7 +167,7 @@ impl PlayerChecker {
         let is_some = processed_name.is_some();
         if let Some(name) = processed_name {
             if name.0.contains("/") && armory_data.is_none() {
-                let proper_url = format!("/en-gb/character/eu/{}/", converted_name_correct_realm(name.0.clone(), realms));
+                let proper_url = format!("/en-gb/modern/eu/armory/character/{}/", converted_name_correct_realm(name.0.clone(), realms));
                 let full_url = format!("https://worldofwarcraft.blizzard.com{}", proper_url.to_lowercase());
                 url = full_url;
                 armory_data = ArmoryChecker::check_armory(&url.clone());
@@ -303,7 +303,7 @@ impl PlayerChecker {
         thread_receiver: &Arc<Mutex<Receiver<RaidHelperUIStatus>>>, 
         max_level: Option<u8>
     ) -> SearchPromptResult {
-        let url = format!("https://worldofwarcraft.blizzard.com/en-gb/search?q={}", name);
+        let url = format!("https://worldofwarcraft.blizzard.com/en-gb/modern/eu/armory?q={}", name);
         let client = Client::new();
         let mut low_level = false;
 
