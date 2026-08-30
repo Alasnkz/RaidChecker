@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, Local, TimeZone, Utc};
 use egui::{CentralPanel, Hyperlink, Label, RichText, SidePanel, Ui, epaint::color};
+use regex::Regex;
 use tracing::info;
 use tracing_subscriber::fmt::format;
 
@@ -332,11 +333,17 @@ impl SignUpsUI {
         }
 
         ui.horizontal(|ui| {
+            let re = Regex::new(
+                r"^https://worldofwarcraft\.blizzard\.com/[^/]+/modern/([^/]+)/armory/character/([^/]+)/([^/]+)/?$"
+            ).unwrap();
             ui.add(Hyperlink::from_label_and_url("Armory", format!("{}", player.armory_url)));
-            let converted_url = player.armory_url.clone().replace("worldofwarcraft.blizzard.com/en-gb", "www.warcraftlogs.com");
+
+            let converted_url = re.replace(&player.armory_url, "https://www.warcraftlogs.com/character/$1/$2/$3").into_owned();
             ui.add(Hyperlink::from_label_and_url("Logs", format!("{}", converted_url)));
-            let converted_url = player.armory_url.clone().replace("worldofwarcraft.blizzard.com/en-gb/character", "raider.io/characters");
+
+            let converted_url = re.replace(&player.armory_url, "https://raider.io/characters/$1/$2/$3").into_owned();
             ui.add(Hyperlink::from_label_and_url("Raider.IO", format!("{}", converted_url)));
+
             if checked_player.as_ref().is_none() && ui.button("Recheck").on_hover_text("Rechecks this player.").clicked() == true {
                 should_recheck = true;
             }
