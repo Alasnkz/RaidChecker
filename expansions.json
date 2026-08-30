@@ -1,7 +1,7 @@
 {
   "rhcu_version": "2.0.9",
-  "modified": 1787133251,
-  "changes": "Season 2 support (activation: August 12th)",
+  "modified": 1788101908,
+  "changes": "Added new weapon enchantment",
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
     {
@@ -675,7 +675,10 @@
             8039,
 
             8040,
-            8041
+            8041,
+
+            8688,
+            8689
           ]
         },
         
