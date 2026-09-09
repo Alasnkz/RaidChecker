@@ -17,6 +17,7 @@ pub(crate) struct SettingsUi {
     pub priority_name_str: String,
     pub priority_discord_str: String,
     pub preset_name_str: String,
+    pub current_slot: String,
 }
 
 impl SettingsUi {
@@ -30,6 +31,7 @@ impl SettingsUi {
             regular_settings: false,
             current_raid_id: -1,
             current_raid_difficulty: 1,
+            current_slot: "head".to_string(),
 
             priority_name_str: String::default(),
             priority_discord_str: String::default(),
@@ -120,7 +122,7 @@ impl SettingsUi {
             });
 
         if self.draw_item_requirements {
-            if Self::draw_item_requirements_settings(ctx, settings, expansions) {
+            if Self::draw_item_requirements_settings(self, ctx, settings, expansions) {
                 self.draw_item_requirements = false;
                 settings.save_mut();
             }
@@ -163,7 +165,7 @@ impl SettingsUi {
         close
     }
 
-    fn draw_item_requirements_settings(ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig) -> bool {
+    fn draw_item_requirements_settings(&mut self, ctx: &eframe::egui::Context, settings: &mut config::settings::Settings, expansions: &config::expansion_config::ExpansionsConfig) -> bool {
         let mut close: bool = false;
         let latest_expansion = expansions.latest_expansion.clone().unwrap();
         let current_season = latest_expansion.latest_season.clone();
@@ -182,7 +184,9 @@ impl SettingsUi {
                 ui.vertical(|ui| {
                     ui.add(egui::Slider::new(&mut settings.current_preset.average_ilvl, base_ilvl..=max_ilvl).text("Average item level required"));
                     ui.add(egui::Slider::new(&mut settings.current_preset.embelishments, 0..=2).text("Embelishments required"));
-                    egui::ScrollArea::vertical().show(ui, |ui| {
+                    egui::ComboBox::from_label("Slot")
+                    .selected_text(format!("{}", self.current_slot))
+                    .show_ui(ui, |ui| {
                         for item in settings.current_preset.slots.as_array_mut().iter_mut() {
                             let seasonal_item = current_season.as_ref().and_then(|s| {
                                 if !s.seasonal_slot_data.is_empty() {
@@ -190,7 +194,7 @@ impl SettingsUi {
                                 }
                                 None
                             });
-
+        
                             let agnostic_item = expansions.agnostic_slot_data.iter().find(|x| x.slot == item.1);
                             let proper_item = latest_expansion.slot_data.iter().find(|x| x.slot == item.1);
 
@@ -208,83 +212,113 @@ impl SettingsUi {
 
                             let has_socket = (proper_item.is_some() && proper_item.unwrap().has_socket) || 
                                 (seasonal_item.is_some() && seasonal_item.unwrap().has_socket);
-
-                            let has_greater_socket_item = (proper_item.is_some() && !proper_item.unwrap().greater_socket_item.is_empty()) ||
-                                (seasonal_item.is_some() && !seasonal_item.unwrap().greater_socket_item.is_empty());
-
-                            let max_sockets = if seasonal_item.is_some() {
-                                seasonal_item.unwrap().max_sockets
-                            } else if proper_item.is_some() {
-                                proper_item.unwrap().max_sockets
-                            } else if agnostic_item.is_some() {
-                                agnostic_item.unwrap().max_sockets
-                            } else {
-                                0
-                            };
-
-                            if !has_enchant && !has_expansional_enchant && item.0.require_slot {
-                                warn!("{} has a enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
-                                item.0.require_slot = false;
-                            }
-
-                            if !has_enchant && !has_expansional_enchant && item.0.require_latest {
-                                warn!("{} has a latest enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
-                                item.0.require_latest = false;
-                            }
-
-
-                            if !has_special_item && item.0.require_special_item {
-                                warn!("{} has a special item requirement, but there are no special items associated with it, turning it off.", item.1);
-                                item.0.require_special_item = false;
-                            }
-
-                            if !has_socket && item.0.require_sockets > 0 {
-                                warn!("{} has a socket requirement, but the slot does not require sockets, turning it off.", item.1);
-                                item.0.require_sockets = 0;
-                            }
-
-                            if !has_greater_socket_item && item.0.require_greater_socket {
-                                warn!("{} has a greater socket item requirement, but there are no greater socket items associated with it, turning it off.", item.1);
-                                item.0.require_greater_socket = false;
-                            }
-
-                            if !has_lesser_enchants && item.0.require_greater {
-                                warn!("{} has a greater enchantment requirement, but there are no lesser enchantments associated with it, turning it off.", item.1);
-                                item.0.require_greater = false;
-                            }
-
-                            
+                                
                             if !has_enchant && !has_expansional_enchant && !has_lesser_enchants && !has_special_item && !has_socket {
                                 continue; // Skip if no requirements
                             }
+                            
+                            let text_colour = if item.0.require_slot || item.0.require_latest || item.0.require_special_item || item.0.require_sockets > 0 || item.0.require_greater_socket || item.0.require_greater {
+                                egui::Color32::YELLOW
+                            } else {
+                                egui::Color32::WHITE
+                            };
 
-                            ui.collapsing(item.1, |ui| {
-                                if has_enchant {
-                                    changed = changed || ui.checkbox(&mut item.0.require_slot, "Require enchantment in slot").changed();
-                                    changed = changed || ui.checkbox(&mut item.0.require_latest, "Require recent enchantment").on_hover_text("Checks to see if the enchantment is from the most recent patch (where applicable, if not it will check the latest expansion).").changed();
-                                }
-
-                                if has_enchant && has_lesser_enchants {
-                                    changed = changed || ui.checkbox(&mut item.0.require_greater, "Require greater enchantment").on_hover_text("Checks to see if the enchantment is a greater version of the enchantment, notable only for corruptions (TWW S2).").changed();
-                                }
-
-                                if has_special_item {
-                                    changed = changed || ui.checkbox(&mut item.0.require_special_item, "Require special item").on_hover_text("Require a special item i.e. DISC belt").changed();
-                                }
-                                
-                                if has_socket {
-                                    let mut click = false;
-                                    changed = changed || ui.add(egui::Slider::new(&mut item.0.require_sockets, 0..=max_sockets).text("Sockets required")).changed();
-                                    if has_greater_socket_item {
-                                        changed = changed || ui.checkbox(&mut item.0.require_greater_socket, "Require greater socket item").on_hover_text("Checks to see if the item has a \"greater\" gem/fibre socketed into it, notable for TWW S3 Reshii Wraps fibers.").changed();
-                                    }
-                                    changed = changed || ui.checkbox(&mut item.0.warn_if_socket_unfilled, "Warn if a socket is unfilled").on_hover_text("Warn if a socket is unfilled, no matter if they have met the socket requirement.").changed();
-                                    
-                                }
-                                
-                            });
+                            ui.selectable_value(&mut self.current_slot, item.1.to_string(), egui::RichText::new(item.1).color(text_colour));
                         }
                     });
+
+                    let mut slots = settings.current_preset.slots.as_array_mut();
+                    let item = slots.iter_mut().find(|x| x.1 == self.current_slot).unwrap();
+                    let seasonal_item = current_season.as_ref().and_then(|s| {
+                        if !s.seasonal_slot_data.is_empty() {
+                            return s.seasonal_slot_data.iter().find(|x| x.slot == item.1);
+                        }
+                        None
+                    });
+
+                    let agnostic_item = expansions.agnostic_slot_data.iter().find(|x| x.slot == item.1);
+                    let proper_item = latest_expansion.slot_data.iter().find(|x| x.slot == item.1);
+
+                    let has_enchant = (proper_item.is_some() && !proper_item.unwrap().enchant_ids.is_empty()) || (seasonal_item.is_some() && !seasonal_item.unwrap().enchant_ids.is_empty()) ||
+                        (seasonal_item.is_some() && !seasonal_item.unwrap().lesser_enchant_ids.is_empty()) ||
+                        (agnostic_item.is_some() && !agnostic_item.unwrap().enchant_ids.is_empty());
+
+                    let has_expansional_enchant = proper_item.is_some() && !proper_item.unwrap().enchant_ids.is_empty();
+                    let has_lesser_enchants = (proper_item.is_some() && !proper_item.unwrap().lesser_enchant_ids.is_empty()) || 
+                        (seasonal_item.is_some() && !seasonal_item.unwrap().lesser_enchant_ids.is_empty()) || 
+                        (agnostic_item.is_some() && !agnostic_item.unwrap().lesser_enchant_ids.is_empty());
+
+                    let has_special_item = (proper_item.is_some() && !proper_item.unwrap().special_item_id.is_empty()) ||
+                        (seasonal_item.is_some() && !seasonal_item.unwrap().special_item_id.is_empty());
+
+                    let has_socket = (proper_item.is_some() && proper_item.unwrap().has_socket) || 
+                        (seasonal_item.is_some() && seasonal_item.unwrap().has_socket);
+
+                    let has_greater_socket_item = (proper_item.is_some() && !proper_item.unwrap().greater_socket_item.is_empty()) ||
+                        (seasonal_item.is_some() && !seasonal_item.unwrap().greater_socket_item.is_empty());
+
+                    let max_sockets = if seasonal_item.is_some() {
+                        seasonal_item.unwrap().max_sockets
+                    } else if proper_item.is_some() {
+                        proper_item.unwrap().max_sockets
+                    } else if agnostic_item.is_some() {
+                        agnostic_item.unwrap().max_sockets
+                    } else {
+                        0
+                    };
+
+                    if !has_enchant && !has_expansional_enchant && item.0.require_slot {
+                        warn!("{} has a enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
+                        item.0.require_slot = false;
+                    }
+
+                    if !has_enchant && !has_expansional_enchant && item.0.require_latest {
+                        warn!("{} has a latest enchantment requirement, but there are no enchantments associated with it, turning it off.", item.1);
+                        item.0.require_latest = false;
+                    }
+
+
+                    if !has_special_item && item.0.require_special_item {
+                        warn!("{} has a special item requirement, but there are no special items associated with it, turning it off.", item.1);
+                        item.0.require_special_item = false;
+                    }
+
+                    if !has_socket && item.0.require_sockets > 0 {
+                        warn!("{} has a socket requirement, but the slot does not require sockets, turning it off.", item.1);
+                        item.0.require_sockets = 0;
+                    }
+
+                    if !has_greater_socket_item && item.0.require_greater_socket {
+                        warn!("{} has a greater socket item requirement, but there are no greater socket items associated with it, turning it off.", item.1);
+                        item.0.require_greater_socket = false;
+                    }
+
+                    if !has_lesser_enchants && item.0.require_greater {
+                        warn!("{} has a greater enchantment requirement, but there are no lesser enchantments associated with it, turning it off.", item.1);
+                        item.0.require_greater = false;
+                    }
+
+                    if has_enchant {
+                        changed = changed || ui.checkbox(&mut item.0.require_slot, "Require enchantment in slot").changed();
+                        changed = changed || ui.checkbox(&mut item.0.require_latest, "Require recent enchantment").on_hover_text("Checks to see if the enchantment is from the most recent patch (where applicable, if not it will check the latest expansion).").changed();
+                    }
+
+                    if has_enchant && has_lesser_enchants {
+                        changed = changed || ui.checkbox(&mut item.0.require_greater, "Require greater enchantment").on_hover_text("Checks to see if the enchantment is a greater version of the enchantment, notable only for corruptions (TWW S2).").changed();
+                    }
+
+                    if has_special_item {
+                        changed = changed || ui.checkbox(&mut item.0.require_special_item, "Require special item").on_hover_text("Require a special item i.e. DISC belt").changed();
+                    }
+                                
+                    if has_socket {
+                        let mut click = false;
+                        changed = changed || ui.add(egui::Slider::new(&mut item.0.require_sockets, 0..=max_sockets).text("Sockets required")).changed();
+                        if has_greater_socket_item {
+                            changed = changed || ui.checkbox(&mut item.0.require_greater_socket, "Require greater socket item").on_hover_text("Checks to see if the item has a \"greater\" gem/fibre socketed into it, notable for TWW S3 Reshii Wraps fibers.").changed();
+                        }
+                        changed = changed || ui.checkbox(&mut item.0.warn_if_socket_unfilled, "Warn if a socket is unfilled").on_hover_text("Warn if a socket is unfilled, no matter if they have met the socket requirement.").changed();    
+                    }
                 });
                 if ui.button("Close").clicked() {
                     close = true;

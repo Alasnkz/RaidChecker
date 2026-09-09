@@ -334,7 +334,7 @@ impl SignUpsUI {
 
         ui.horizontal(|ui| {
             let re = Regex::new(
-                r"^https://worldofwarcraft\.blizzard\.com/[^/]+/modern/([^/]+)/armory/character/([^/]+)/([^/]+)/?$"
+                r"^https://worldofwarcraft\.blizzard\.com/[^/]+/worldsoul/([^/]+)/armory/character/([^/]+)/([^/]+)/?$"
             ).unwrap();
             ui.add(Hyperlink::from_label_and_url("Armory", format!("{}", player.armory_url)));
 

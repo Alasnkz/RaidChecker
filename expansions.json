@@ -1,6 +1,6 @@
 {
   "rhcu_version": "2.0.9",
-  "modified": 1788101908,
+  "modified": 1788973996,
   "changes": "Added new weapon enchantment",
   "latest_expansion_identifier": "MN",
   "agnostic_slot_data": [
@@ -916,7 +916,7 @@
           ],
 
           "pvp_bonus_ids": [
-            13447, 13448, 13449, 13853, 13854, 13855, 13856
+            13447, 13448, 13449, 13853, 13854, 13855, 13856, 13657
           ],
 
           "max_ilvl": 340

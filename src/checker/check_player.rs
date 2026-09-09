@@ -167,7 +167,7 @@ impl PlayerChecker {
         let is_some = processed_name.is_some();
         if let Some(name) = processed_name {
             if name.0.contains("/") && armory_data.is_none() {
-                let proper_url = format!("/en-gb/modern/eu/armory/character/{}/", converted_name_correct_realm(name.0.clone(), realms));
+                let proper_url = format!("/en-gb/worldsoul/eu/armory/character/{}/", converted_name_correct_realm(name.0.clone(), realms));
                 let full_url = format!("https://worldofwarcraft.blizzard.com{}", proper_url.to_lowercase());
                 url = full_url;
                 armory_data = ArmoryChecker::check_armory(&url.clone());
@@ -303,7 +303,7 @@ impl PlayerChecker {
         thread_receiver: &Arc<Mutex<Receiver<RaidHelperUIStatus>>>, 
         max_level: Option<u8>
     ) -> SearchPromptResult {
-        let url = format!("https://worldofwarcraft.blizzard.com/en-gb/modern/eu/armory?q={}", name);
+        let url = format!("https://worldofwarcraft.blizzard.com/en-gb/worldsoul/eu/armory?q={}", name);
         let client = Client::new();
         let mut low_level = false;
 
@@ -322,11 +322,18 @@ impl PlayerChecker {
         }
 
         let mut chars: Vec<(String, String)> = Vec::new();
-        let document = Html::parse_document(&text.unwrap());
-        let link_selector = Selector::parse("a.Link.Character").unwrap();
- 
+        let text = text.unwrap();
+        let document = Html::parse_document(&text);
+        let link_selector = Selector::parse("div.Character-link").unwrap();
+        let anchor_selector = Selector::parse("div.Character-table > a.Link").unwrap();
+
         for element in document.select(&link_selector) {
-            let href = element.value().attr("href").unwrap_or("");
+            let href = element
+                .select(&anchor_selector)
+                .next()
+                .and_then(|a| a.value().attr("href"))
+                .unwrap_or("");
+
             let name_selector = Selector::parse(".Character-name").unwrap();
             let level_selector = Selector::parse(".Character-level").unwrap();
             let realm_selector = Selector::parse(".Character-realm").unwrap();
