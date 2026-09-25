@@ -6,7 +6,7 @@ use regex::Regex;
 use tracing::info;
 use tracing_subscriber::fmt::format;
 
-use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, gear_checker::GearChecker, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_UNCONFIRMED, RaidSheetType}, saved_checker::SavedChecker}, config::{self, expansion_config::ExpansionsConfig, settings::PriorityChecks}};
+use crate::{SHOULD_RECHECK_ALL, SHOULD_RECHECK_ATTENDANCE, checker::{armory_checker::RaidProgressStatus, check_player::PlayerData, gear_checker::GearChecker, raid_sheet::{Player, RAID_PLAN_CANCELLED, RAID_PLAN_NONE, RAID_PLAN_UNCONFIRMED, RaidSheetType}, saved_checker::SavedChecker}, config::{self, expansion_config::ExpansionsConfig, settings::PriorityChecks}};
 
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 struct BossKey {
@@ -76,6 +76,10 @@ impl SignUpsUI {
                                 if settings.current_preset.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id).is_some() {
                                     label_name = format!("⭐ {}", label_name);
                                 }
+                                
+                                if player.confirmed != RAID_PLAN_NONE {
+                                    label_name = format!("📄 {}", label_name);
+                                }
 
                                 if ui.label(egui::RichText::new(label_name).color(self.colour_player_label(settings, player, expansions))).clicked() {
                                     self.target_player = Some(player.clone());
@@ -111,6 +115,10 @@ impl SignUpsUI {
 
                                 if settings.current_preset.regulars.as_ref().unwrap_or(&BTreeMap::new()).get(&player.discord_id).is_some() {
                                     label_name = format!("⭐ {}", label_name);
+                                }
+
+                                if player.confirmed != RAID_PLAN_NONE {
+                                    label_name = format!("📄 {}", label_name);
                                 }
 
                                 if ui.label(egui::RichText::new(label_name).color(self.colour_player_label(settings, player, expansions))).clicked() {

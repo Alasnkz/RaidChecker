@@ -238,10 +238,10 @@ impl eframe::App for RaidHelperCheckerApp {
                     ui.horizontal(|ui| {
                         
                         if ui.button("Download").clicked() {
-                            ui.output_mut(|o| o.open_url = Some(egui::output::OpenUrl {
+                            ui.ctx().open_url(egui::output::OpenUrl {
                                 url: "https://github.com/Alasnkz/RaidChecker/releases/latest".to_string(),
                                 new_tab: true,
-                            }));
+                            });
 
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         } else if ui.button("Cancel").clicked() {
